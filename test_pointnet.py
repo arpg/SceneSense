@@ -8,7 +8,7 @@ test_pcd = np.loadtxt("test_pcd.txt", dtype = np.single)
 test_pcd = test_pcd.T
 test_pcd = np.expand_dims(test_pcd, axis = 0)
 test_pcd = torch.from_numpy(test_pcd)
-print(test_pcd.shape)
+print("pointnet_input shape: ", test_pcd.shape)
 model = get_model()
 xyz = torch.rand(1, 3, 4096)
 print(xyz.dtype)

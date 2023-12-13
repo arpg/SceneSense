@@ -38,10 +38,13 @@ class get_model(nn.Module):
         # print(l2_points.shape)
         l1_points = self.fp2(l1_xyz, l2_xyz, l1_points, l2_points)
         # print(l1_points.shape)
+        #i might actually want this instead of the l0 points since it will be much smaller
         l0_points = self.fp1(l0_xyz, l1_xyz, None, l1_points)
         # print(l0_points.shape)
 
-        x = self.drop1(F.relu(self.bn1(self.conv1(l0_points))))
+        # x = self.drop1(F.relu(self.bn1(self.conv1(l0_points))))
+        #I am going to add the dropout to the l1 points because we dont actuall need that much conditioning
+        x = self.drop1(F.relu(self.bn1(self.conv1(l1_points))))
         return x
 
         #removing this and returning above because we dont need all this data
