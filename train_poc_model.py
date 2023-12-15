@@ -10,15 +10,31 @@ import numpy as np
 import copy
 import open3d as o3d
 from tqdm.auto import tqdm
+import wandb
 import random
+from huggingface_hub import login
 from diffusers.optimization import get_cosine_schedule_with_warmup
+
+login(token="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")
+wandb.init(
+    # set the wandb project where this run will be logged
+    project="scene_diffusion",
+    
+    # track hyperparameters and run metadata
+    config={
+    "learning_rate": 0.02,
+    "architecture": "CNN",
+    "dataset": "CIFAR-100",
+    "epochs": 10,
+    }
+)
 
 @dataclass
 class TrainingConfig:
     image_size = 128  # the generated image resolution
     train_batch_size = 16
     eval_batch_size = 16  # how many images to sample during evaluation
-    num_epochs = 500
+    num_epochs = 250
     gradient_accumulation_steps = 1
     learning_rate = 1e-4
     lr_warmup_steps = 500
@@ -189,57 +205,67 @@ lr_scheduler = get_cosine_schedule_with_warmup(
 )
 
 for epoch in range(config.num_epochs):
-        progress_bar = tqdm(total=len(gt_dataloader))
-        progress_bar.set_description(f"Epoch {epoch}")
+    progress_bar = tqdm(total=len(gt_dataloader))
+    progress_bar.set_description(f"Epoch {epoch}")
 
-        for (step, batch), conditioning_batch in zip(enumerate(gt_dataloader),conditioning_dataloader):
-            
-            
-            #here what it does in the old scripts
-            clean_images = batch
-            # Sample noise to add to the images
-            noise = torch.randn(clean_images.shape).to(clean_images.device)
-            bs = clean_images.shape[0]
+    for (step, batch), conditioning_batch in zip(enumerate(gt_dataloader),conditioning_dataloader):
+        
+        
+        #here what it does in the old scripts
+        clean_images = batch
+        # Sample noise to add to the images
+        noise = torch.randn(clean_images.shape).to(clean_images.device)
+        bs = clean_images.shape[0]
 
-            # Sample a random timestep for each image
-            timesteps = torch.randint(
-                0, noise_scheduler.config.num_train_timesteps, (bs,), device=clean_images.device
-            ).long()
+        # Sample a random timestep for each image
+        timesteps = torch.randint(
+            0, noise_scheduler.config.num_train_timesteps, (bs,), device=clean_images.device
+        ).long()
 
-            # Add noise to the clean images according to the noise magnitude at each timestep
-            # (this is the forward diffusion process)
-            noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
+        # Add noise to the clean images according to the noise magnitude at each timestep
+        # (this is the forward diffusion process)
+        noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
 
-            #get the conditioning data
-            print(conditioning_batch.shape)
-            post_model_conditioning_batch = conditioning_model(conditioning_batch)
-            post_model_conditioning_batch = post_model_conditioning_batch.swapaxes(1, 2)
-            # Predict the noise residual
-            #compute if one of the conditioning batches should be set to zeros
-            n = random.sample(range(0,100), len(post_model_conditioning_batch))
-            dropout_idx = [i for i,v in enumerate(n) if v < dropout*100]
+        #get the conditioning data
+        print(conditioning_batch.shape)
+        post_model_conditioning_batch = conditioning_model(conditioning_batch)
+        post_model_conditioning_batch = post_model_conditioning_batch.swapaxes(1, 2)
+        # Predict the noise residual
+        #compute if one of the conditioning batches should be set to zeros
+        n = random.sample(range(0,100), len(post_model_conditioning_batch))
+        dropout_idx = [i for i,v in enumerate(n) if v < dropout*100]
 
-            for i in dropout_idx:
-                post_model_conditioning_batch[i] = zeroed_conditioning           
+        for i in dropout_idx:
+            post_model_conditioning_batch[i] = zeroed_conditioning           
 
-            print(noisy_images.dtype)
-            print(post_model_conditioning_batch.dtype)
-            print(noisy_images.shape)
-            print(post_model_conditioning_batch.shape)
-            noise_pred = model(noisy_images, timesteps, encoder_hidden_states=post_model_conditioning_batch, return_dict=False)[0]
-            loss = F.mse_loss(noise_pred, noise)
-            loss.backward()
-            # torch.nn.utils.clip_grad_norm(list(model.parameters()) + list(conditioning_model.parameters()),options['clip_gradient_norm'])
+        # print(noisy_images.dtype)
+        # print(post_model_conditioning_batch.dtype)
+        # print(noisy_images.shape)
+        # print(post_model_conditioning_batch.shape)
+        noise_pred = model(noisy_images, timesteps, encoder_hidden_states=post_model_conditioning_batch, return_dict=False)[0]
+        loss = F.mse_loss(noise_pred, noise)
+        loss.backward()
+        # torch.nn.utils.clip_grad_norm(list(model.parameters()) + list(conditioning_model.parameters()),options['clip_gradient_norm'])
 
-            #NEED TO ADD THIS 
-            # accelerator.clip_grad_norm_(model.parameters(), 1.0)
+        #NEED TO ADD THIS 
+        # accelerator.clip_grad_norm_(model.parameters(), 1.0)
 
-            optimizer.step()
-            lr_scheduler.step()
-            optimizer.zero_grad()
+        optimizer.step()
+        lr_scheduler.step()
+        optimizer.zero_grad()
 
-            progress_bar.update(1)
-            global_step += 1
+        progress_bar.update(1)
+        wandb.log({"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "step": global_step, "epoch": epoch})
+
+        global_step += 1
+    
+    print("\nPushing to Hub\n")
+    model.push_to_hub("diff_unet")
+    torch.save(conditioning_model.state_dict(), "/home/arpg/Documents/SceneDiffusion/conditioning_model_weights/cond_model" + str(epoch))
+    
+    # repo.push_to_hub(commit_message=f"Epoch {epoch}", blocking=True)
+    # conditioning_model.push_to_hub("diff_pointnet")
+    # repo.push_to_hub(commit_message=f"Epoch {epoch}", blocking=True)
 
 
 
