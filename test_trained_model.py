@@ -16,9 +16,9 @@ from huggingface_hub import login
 from diffusers.optimization import get_cosine_schedule_with_warmup
 import utils.utils as utils
 
-model = UNet2DConditionModel.from_pretrained("alre5639/diff_unet")
+model = UNet2DConditionModel.from_pretrained("alre5639/diff_unet_512_arpg")
 conditioning_model = get_model()
-conditioning_model.load_state_dict(torch.load("/home/arpg/Documents/SceneDiffusion/conditioning_model_weights/cond_model" + str(217)))
+conditioning_model.load_state_dict(torch.load("/home/arpg/Documents/SceneDiffusion/full_conditioning_weights/full_cond_model" + str(249)))
 
 
 #make sure all the data moves through the network correctly
