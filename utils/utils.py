@@ -171,7 +171,7 @@ def denoise_guided_inference(model, noise_scheduler, conditioning, width, torch_
     latents = latents * noise_scheduler.init_noise_sigma
 
     #set sample conditioning, concating uncondtioned noise so we only need to do one forward pass
-    uncond_embeddings = torch.zeros(1024, 128)
+    uncond_embeddings = torch.zeros(conditioning.shape[1], conditioning.shape[2])
     uncond_embeddings = uncond_embeddings[None,:,:]
     # uncond_embeddings = uncond_embeddings.to(torch_device)
     print(conditioning.shape)
@@ -197,50 +197,59 @@ def denoise_guided_inference(model, noise_scheduler, conditioning, width, torch_
         progress_bar.update(1)
     return latents
 
-def inpainting_guided_inference(model, noise_scheduler, conditioning, width, seg_scan, torch_device = "cuda:1", denoising_steps = 1000, guidance_scale = 7.5, sample_batch_size = 1):
-    #set the timesteps for denoiseing
+
+
+def inpainting_pointmaps(model, noise_scheduler, conditioning, width, inpainting_target, torch_device = "cpu", denoising_steps = 30, guidance_scale = 7.5, sample_batch_size = 1):
+    #set up initialize noise scheudler and noise to be operated on
     noise_scheduler.set_timesteps(denoising_steps)
-    noise = torch.randn(seg_scan.shape)
-
-    voxel_grid = torch.tensor(seg_scan, dtype=torch.float)
-    #get the coordiantes with an input scan
-    print(voxel_grid.shape)
+    noise = torch.randn(inpainting_target.shape)
+    #load the inpainting target
+    voxel_grid = torch.tensor(inpainting_target, dtype=torch.float)
+    #get the coordinates of the occupied voxels
     input_coordinate = np.where(voxel_grid > 0.9)
-    # print(input_coordinate)
-
-    # #heres how you get all the input points that we are going to replace in the noise image. 
-    # for i in range(len(input_coordinate[0])):
-    #     print(voxel_grid[input_coordinate[0][i],input_coordinate[1][i]])
-
+    print(input_coordinate)
+    # print("shape: ", input_coordinate.shape)
 
     #generate noise to be diffused
     generator = torch.manual_seed(0)  # Seed generator to create the inital latent noise
 
     #set sample conditioning, concating uncondtioned noise so we only need to do one forward pass
-    uncond_embeddings = torch.zeros(1024, 128)
+    uncond_embeddings = torch.zeros(conditioning.shape[1], conditioning.shape[2])
     uncond_embeddings = uncond_embeddings[None,:,:]
-    uncond_embeddings = uncond_embeddings.to(torch_device)
+    # uncond_embeddings = uncond_embeddings.to(torch_device)
     sample_conditioning = torch.cat([uncond_embeddings, torch.tensor(conditioning, dtype=torch.float).to(torch_device)])
 
     #generate progress bar
     #perform diffusion
     # print(noise_scheduler.timesteps)
-    generator = torch.manual_seed(0)  # Seed generator to create the inital latent noise
+    generator = torch.manual_seed(0)  
     latents = torch.randn((sample_batch_size, model.config.in_channels, width, width),generator=generator)
-    latents = latents.to(torch_device)
+    # latents = latents.to(torch_device)
     latents = latents * noise_scheduler.init_noise_sigma
-
-    # noisy_images = noise_scheduler.add_noise(voxel_grid, noise, timesteps = torch.tensor([t.item()]))
-    # noisy_input_scan = noisy_images[None,None,0:96,0:96]
-
     for t in tqdm(noise_scheduler.timesteps):
         #get the noisy scan points
+        #this adds noise to voxel grid which is our conditioning targets
         noisy_images = noise_scheduler.add_noise(voxel_grid, noise, timesteps = torch.tensor([t.item()]))
-        noisy_input_scan = noisy_images[None,None,:,:]
+
         # print(latents.shape)
         #add in the noise image wehre the input scans are
-        for i in range(len(input_coordinate[0])):
-            latents[0][0][input_coordinate[0][i],input_coordinate[1][i]] = noisy_images[input_coordinate[0][i],input_coordinate[1][i]]
+        #replace the data with the overwrited noisified current octomap image
+
+        print(latents.shape)
+        
+        #now we just iterate through all the coordinates,eveywhere we have a cordinate we put in the noisy new oocumancy
+        for idx, z_val in enumerate(input_coordinate[0]):
+            #we are iterating though the tuple using the first coord
+            x_val = input_coordinate[1][idx]
+            y_val = input_coordinate[2][idx]
+            # print(latents.shape)
+            # print(noisy_images.shape)
+            # print(z_val, x_val, y_val)
+            #replace the latent value with the new noisified input value
+            latents[0][z_val, x_val, y_val] = noisy_images[z_val, x_val, y_val]
+        
+        #     break
+        # break
         # expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
         latent_model_input = torch.cat([latents] * 2)
         latent_model_input = noise_scheduler.scale_model_input(latent_model_input, timestep=t)
@@ -254,3 +263,11 @@ def inpainting_guided_inference(model, noise_scheduler, conditioning, width, seg
         # compute the previous noisy sample x_t -> x_t-1
         latents = noise_scheduler.step(noise_pred, t, latents).prev_sample
     return latents
+
+
+
+def get_IoU(gt, prediction):
+    prediction = np.rint(prediction)
+    intsection = np.logical_and(gt, prediction)
+    overlap = np.logical_or(gt, prediction)
+    return np.count_nonzero(intsection)/np.count_nonzero(overlap)
