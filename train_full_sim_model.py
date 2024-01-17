@@ -8,7 +8,7 @@ import os
 from natsort import natsorted
 import numpy as np
 import copy
-import open3d as o3d
+# import open3d as o3d
 from tqdm.auto import tqdm
 import wandb
 import random
@@ -172,6 +172,10 @@ lr_scheduler = get_cosine_schedule_with_warmup(
     num_training_steps=(len(gt_dataloader) * config.num_epochs),
 )
 
+#make sure everything is on the GPU
+model = model.to(torch_device)
+conditioning_model = conditioning_model.to(torch_device)
+
 for epoch in range(config.num_epochs):
     progress_bar = tqdm(total=len(gt_dataloader))
     progress_bar.set_description(f"Epoch {epoch}")
@@ -193,7 +197,7 @@ for epoch in range(config.num_epochs):
             gt_data = np.append(gt_data, single_gt_data, axis = 0)
         gt_data = gt_data.astype(np.single)
         #gt_data to tensor:
-        gt_data = torch.tensor(gt_data)
+        gt_data = torch.tensor(gt_data).to(torch_device)
         #######################3
         # turn gt data into the images
         #here what it does in the old scripts
@@ -210,7 +214,7 @@ for epoch in range(config.num_epochs):
         # Add noise to the clean images according to the noise magnitude at each timestep
         # (this is the forward diffusion process)
         noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
-
+        noisy_images = noisy_images.to(torch_device)
         #load the conditioning files
         #initalize gt data cube:
         cond_data = np.load(cond_dir + conditioning_batch[0])
@@ -220,7 +224,7 @@ for epoch in range(config.num_epochs):
         cond_data = cond_data[None,:,:]
         #pass through pointnet
         # print(cond_data.shape)
-        cond_tensor = conditioning_model(torch.tensor(cond_data.astype(np.single)))
+        cond_tensor = conditioning_model(torch.tensor(cond_data.astype(np.single)).to(torch_device))
         # print(conditioning_model(torch.tensor(cond_data.astype(np.single))).shape)
 
 
@@ -232,10 +236,10 @@ for epoch in range(config.num_epochs):
             single_cond_data = single_cond_data.T
             #add batch dim
             single_cond_data = single_cond_data[None,:,:]
-            single_cond_tensor = conditioning_model(torch.tensor(single_cond_data.astype(np.single)))
+            single_cond_tensor = conditioning_model(torch.tensor(single_cond_data.astype(np.single)).to(torch_device))
             #append to data cube
             cond_tensor = torch.cat((cond_tensor, single_cond_tensor), 0)
-        print(cond_tensor.shape)
+        # print(cond_tensor.shape)
 
         post_model_conditioning_batch = cond_tensor.swapaxes(1, 2)
         # Predict the noise residual
@@ -245,11 +249,11 @@ for epoch in range(config.num_epochs):
 
         for i in dropout_idx:
             post_model_conditioning_batch[i] = zeroed_conditioning           
-
+        post_model_conditioning_batch = post_model_conditioning_batch.to(torch_device)
         # print(noisy_images.dtype)
         # print(post_model_conditioning_batch.dtype)
-        print(noisy_images.shape)
-        print(post_model_conditioning_batch.shape)
+        # print(noisy_images.shape)
+        # print(post_model_conditioning_batch.shape)
         noise_pred = model(noisy_images, timesteps, encoder_hidden_states=post_model_conditioning_batch, return_dict=False)[0]
         loss = F.mse_loss(noise_pred, noise)
         loss.backward()
@@ -268,8 +272,8 @@ for epoch in range(config.num_epochs):
         global_step += 1
     
     print("\nPushing to Hub\n")
-    model.push_to_hub("rgbd_unet_512")
-    torch.save(conditioning_model.state_dict(), "/home/arpg/Documents/SceneDiffusion/rgbd_512_cond_weights/cond_model" + str(epoch))
+    model.push_to_hub("full_rgbd_unet_512")
+    torch.save(conditioning_model.state_dict(), "full_sim_pointnet_weights/" + str(epoch))
     
 #     # repo.push_to_hub(commit_message=f"Epoch {epoch}", blocking=True)
 #     # conditioning_model.push_to_hub("diff_pointnet")
