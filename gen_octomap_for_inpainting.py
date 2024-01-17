@@ -80,7 +80,7 @@ def points_within_distance(x, y, points, distance):
 
 
 #load the 100th octomap frame from testing
-pcd = o3d.io.read_point_cloud("/home/arpg/Documents/open3d_from_habitat/training_graphs/running_110_frames.pcd")
+pcd = o3d.io.read_point_cloud("/home/arpg/Documents/open3d_from_habitat/training_graphs/running_10_frames.pcd")
 colors = np.zeros((len(np.asarray(pcd.points)), 3))
 # colors[:,0] = colors[:,0]
 pcd.colors = o3d.utility.Vector3dVector(colors)
@@ -90,11 +90,11 @@ coor = o3d.geometry.TriangleMesh.create_coordinate_frame()
 f = open("/home/arpg/Documents/habitat-lab/out_training_data/sample_octomap_running.txt", "r")
 
 
-points = np.loadtxt("/home/arpg/Documents/open3d_from_habitat/training_pointclouds/local_pc_" + str(110) + ".txt")
+points = np.loadtxt("/home/arpg/Documents/open3d_from_habitat/training_pointclouds/local_pc_" + str(10) + ".txt")
 #load the pose:
-curr_pose = np.loadtxt("/home/arpg/Documents/habitat-lab/out_training_data/pose_" + str(111) + ".txt")
+curr_pose = np.loadtxt("/home/arpg/Documents/habitat-lab/out_training_data/pose_" + str(10) + ".txt")
 #load the rotation
-curr_rot = np.loadtxt("/home/arpg/Documents/habitat-lab/out_training_data/rot_" + str(111) + ".txt")
+curr_rot = np.loadtxt("/home/arpg/Documents/habitat-lab/out_training_data/rot_" + str(10) + ".txt")
 rotation_val = Rotation.from_rotvec(curr_rot)
 pose_mat = homogeneous_transform(curr_pose,rotation_val.as_quat())
 coor = coor.transform(pose_mat)
@@ -124,7 +124,7 @@ gt_files = natsorted(os.listdir(gt_dir))
 # ##################################
 cond_dir = "data/rgbd_voxelized_data/"
 cond_files = natsorted(os.listdir(cond_dir))
-i = 110
+i = 10
 print(gt_files[i]," | ", cond_files[i])
 
 #get conditioning data:
@@ -149,7 +149,7 @@ gt_data_pointmap = np.load(gt_dir + gt_files[i])
 gt_data = utils.pointmap_to_pc(gt_data_pointmap)
 gt_pc = o3d.geometry.PointCloud()
 gt_pc.points = o3d.utility.Vector3dVector(gt_data)
-# gt_pc = gt_pc.transform(pose_mat)
+# gt_pc = gt_pc.transform(utils.inverse_homogeneous_transform(pose_mat))
 
 #get the local data from the octomap
 running_loc_points = points_within_distance(curr_pose[0], curr_pose[2], np.asarray(pcd.points), 1.5)
@@ -166,12 +166,13 @@ local_110_points = local_110_points.transform(utils.inverse_homogeneous_transfor
 print(np.asarray(local_110_points.points).shape)
 pointmap_110_local = utils.pc_to_pointmap(np.asarray(local_110_points.points), voxel_size = 0.1, x_y_bounds = [-1.5, 1.5], z_bounds = [-1.4, 0.9])
 #unpointmap it to check
-# returned_pc = utils.pointmap_to_pc(pointmap)
-# predicted_pc = o3d.geometry.PointCloud()
-# predicted_pc.points = o3d.utility.Vector3dVector(returned_pc)
+local_110_pcd = o3d.geometry.PointCloud()
+local_110_pcd.points = o3d.utility.Vector3dVector(utils.pointmap_to_pc(pointmap_110_local))
 # print(pointmap_110_local.shape)
 # print(gt_data_pointmap[0].shape)
 print(utils.get_IoU(pointmap_110_local,gt_data_pointmap))
+
+
 ####################################
 #diffusion inpainting:
 ####################################
@@ -195,5 +196,18 @@ print(utils.get_IoU(denoised_inpainted_prediction[0],gt_data_pointmap))
 returned_pc = utils.pointmap_to_pc(denoised_inpainted_prediction[0])
 predicted_pc = o3d.geometry.PointCloud()
 predicted_pc.points = o3d.utility.Vector3dVector(returned_pc)
+
+#set the colors
+#gt colors
+colors = np.zeros((len(np.asarray(gt_pc.points)), 3))
+colors[:,0] = colors[:,1] + 1
+gt_pc.colors = o3d.utility.Vector3dVector(colors)
+#local colors:
+colors = np.zeros((len(np.asarray(local_110_pcd.points)), 3))
+local_110_pcd.colors = o3d.utility.Vector3dVector(colors)
+#predicted colors
+colors = np.zeros((len(np.asarray(predicted_pc.points)), 3))
+colors[:,0] = colors[:,0] + 1
+predicted_pc.colors = o3d.utility.Vector3dVector(colors)
 
 o3d.visualization.draw_geometries([predicted_pc])
