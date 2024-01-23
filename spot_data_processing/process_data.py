@@ -3,18 +3,28 @@ import bagpy
 from bagpy import bagreader
 import pandas as pd
 import os.path
-import numpy as np 
+import numpy as np
+from scipy.spatial.transform import Rotation as R
 import re
 import io
 import json
 #from pypcd import pypcd
 from pypcd4 import PointCloud
 from dataclasses import dataclass
+import yaml
 
-ODOMETRY_COLUMNS = ['pose.pose.position.x',
-       'pose.pose.position.y', 'pose.pose.position.z',
-       'pose.pose.orientation.x', 'pose.pose.orientation.y',
-       'pose.pose.orientation.z']
+ODOMETRY_LOCATIONS = ['pose.pose.position.x',
+       'pose.pose.position.y', 'pose.pose.position.z']
+
+ODOMETRY_QUAT = ['pose.pose.orientation.x', 'pose.pose.orientation.y',
+       'pose.pose.orientation.z', 'pose.pose.orientation.w']
+
+ODOMETRY_RPY = ['roll', 'pitch', 'yaw']
+
+ODOMETRY_OUTPUT_NAMES = [
+    'x', 'y', 'z', 'rx', 'ry', 'rx', 'rw'
+]
+
 
 def replace_char(string: str, sub: str, wanted: str, n: int) -> str:
     where = [m.start() for m in re.finditer(sub, string)][n-1]
@@ -97,47 +107,78 @@ class FieldDataClass(object):
 
 if __name__ == '__main__':
 
+    # Paths
     base_path = '/home/brendan/spot_data/'
     bag_name = 'IRL_lab_and_below'
+    dataset_dir = '/home/brendan/spot_data/dataset/raw/'
+    data_dir = 'IRL/'
     odometry_topic_name = '/D02/throttled_odometry'
     point_cloud_topic_name = '/D02/throttled_point_cloud'
     tf_topic_name = '/throttled_tf'
+
+
+    # Read bagfile
     bag = bagreader(base_path + bag_name + '.bag')
+
+
+    # Build .csv files
     num_point_clouds = bag.topic_table.iloc[2]['Message Count']
-    
-    text_output_filename = base_path + bag_name + '.txt'
+    text_output_filename = base_path + bag_name + '.log'
     tf_file_name = build_csv(base_path + bag_name, tf_topic_name, bag)
     odometry_file_name = build_csv(base_path + bag_name, odometry_topic_name, bag)
     point_cloud_file_name = build_csv(base_path + bag_name, point_cloud_topic_name, bag)
     
+    # Load .csv files into memory
+    transforms = load_full_csv(tf_file_name)
     odometry = load_full_csv(odometry_file_name)
-    #print(odometry.min(), odometry.max())
-    tf = load_full_csv(tf_file_name)
-    #print(tf.iloc[0]['transforms'])
+    odometry[['roll', 'pitch', 'yaw']] = R.from_quat(odometry[ODOMETRY_QUAT].to_numpy()).as_rotvec()
+
+    # Loop over all point clouds
     with open(text_output_filename, 'w') as file:
+        # Iterate over 100 row chunks of point cloud csv
         for point_clouds in load_chunk_csv_pandas(point_cloud_file_name, 100):
+            # Iterate over each row
             for index, row in point_clouds.iterrows():
+
+                # Find closest odometry message to current point cloud message
                 odometry_index = np.argmin(np.abs(odometry['Time'].to_numpy() - row['Time']))
-                odom = odometry.iloc[odometry_index][ODOMETRY_COLUMNS]
-                
-                tf_index = np.argmin(np.abs(tf['Time'].to_numpy() - row['Time']))
-                #print(point_clouds.columns)
-                
+                odom = odometry.iloc[odometry_index][ODOMETRY_LOCATIONS + ODOMETRY_RPY]
+                #odom_dict = {k: v for k, v in zip(ODOMETRY_OUTPUT_NAMES, odom.to_numpy())}
+                # Find closest transform message to currect point cloud message
+
+                tf_indicies = np.argsort(np.abs(transforms['Time'].to_numpy() - row['Time']))
+                for idx in tf_indicies:
+                    try:
+                        tf = yaml.safe_load(transforms.iloc[idx]['transforms'][1:-1])
+                        break
+                    except:
+                        print(transforms.iloc[idx]['transforms'])
+              
+                # Reformat string representation of fields into list of dataclasses
                 fields = [FieldDataClass(*varify(s)) for s in chunker(re.split('\n|, ', row['fields'][1:-1]), 4)]
-                #print(fields)
                 row['fields'] = fields
+
+                # Encode str of binary represenation of point cloud into bytes var
                 cloud = row['data'].encode().decode('unicode-escape').encode('ISO-8859-1')[2:-1]
                 row['data'] = np.frombuffer(cloud)
-                #print(PointCloud.from_fileobj(io.StringIO(row['data'])))
                 pc = PointCloud.from_msg(row)
-                #print(pc.numpy().shape[0])
+                
+
+                # Save point clouds, odometry, and transforms
+                pc.save(dataset_dir + data_dir + 'point_clouds/' + str(index).zfill(4) + '.pcd')
+                with open(dataset_dir + data_dir + 'transforms/' + str(index).zfill(4) + '.yaml', 'w') as f:
+                    try:
+                        yaml.safe_dump(tf, f)
+                    except:
+                        print(tf)
+                        exit()
+                np.save(dataset_dir + data_dir + 'odometry/' + str(index).zfill(4), odom.to_numpy())
+                
+                # Write point clouds and odometry to .log file for octomap
                 file.write(f'NODE {" ".join([str(x) for x in odom])}\n')
                 file.write(pc_to_str(pc.numpy()))
                 if index % 100 == 0:
                     print("{:.2f}".format(index / num_point_clouds))
-                #print(row['data'])
-                #print(odometry_index, tf_index)
+            
             
 
-    #point_clouds = load_csv(base_path + bag_name, point_cloud_topic_name, bag)
-    #print(point_clouds.head())
