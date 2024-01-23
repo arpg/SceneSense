@@ -43,7 +43,15 @@ def load_chunk_csv(topic_file_name: str, chunk_size: int, num_rows: int):
         df = pd.read_csv(topic_file_name, skiprows=skip_rows, nrows=chunk_size)
         yield df
         skip_rows += chunk_size
-    
+
+def load_chunk_csv_pandas(topic_file_name: str, chunk_size: int):
+
+    with pd.read_csv(topic_file_name, chunksize=chunk_size) as reader:
+        print(reader)
+        for chunk in reader:
+            yield chunk
+
+
 # f = open("explore_test/sample_octomap_running.txt", "a")
 # write_str = "NODE " + str(depth_cam_pos[0]) +" " + str(depth_cam_pos[1]) + " " + str(depth_cam_pos[2]) + " " + str(depth_cam_rot[0]) + " " + str(depth_cam_rot[1])  + " " + str(depth_cam_rot[2])  + "\n"
 # # print(write_str)
@@ -107,13 +115,10 @@ if __name__ == '__main__':
     tf = load_full_csv(tf_file_name)
     #print(tf.iloc[0]['transforms'])
     with open(text_output_filename, 'w') as file:
-        for point_clouds in load_chunk_csv(point_cloud_file_name, 100, num_point_clouds):
+        for point_clouds in load_chunk_csv_pandas(point_cloud_file_name, 100):
             for index, row in point_clouds.iterrows():
-                try:
-                    odometry_index = np.argmin(np.abs(odometry['Time'].to_numpy() - row['Time']))
-                    odom = odometry.iloc[odometry_index][ODOMETRY_COLUMNS]
-                except KeyError:
-                    print(row)
+                odometry_index = np.argmin(np.abs(odometry['Time'].to_numpy() - row['Time']))
+                odom = odometry.iloc[odometry_index][ODOMETRY_COLUMNS]
                 
                 tf_index = np.argmin(np.abs(tf['Time'].to_numpy() - row['Time']))
                 #print(point_clouds.columns)
