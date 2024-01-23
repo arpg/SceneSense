@@ -272,8 +272,8 @@ for epoch in range(config.num_epochs):
         global_step += 1
     
     print("\nPushing to Hub\n")
-    model.push_to_hub("full_rgbd_unet_512")
-    torch.save(conditioning_model.state_dict(), "full_sim_pointnet_weights/" + str(epoch))
+    model.push_to_hub("full_rgbd_unet_512_more_pointnet")
+    torch.save(conditioning_model.state_dict(), "full_sim_pointnet_weights_more_pointnet/" + str(epoch))
     
 #     # repo.push_to_hub(commit_message=f"Epoch {epoch}", blocking=True)
 #     # conditioning_model.push_to_hub("diff_pointnet")
