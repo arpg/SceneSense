@@ -142,18 +142,16 @@ if __name__ == '__main__':
 
                 # Find closest odometry message to current point cloud message
                 odometry_index = np.argmin(np.abs(odometry['Time'].to_numpy() - row['Time']))
-                odom = odometry.iloc[odometry_index][ODOMETRY_LOCATIONS + ODOMETRY_RPY]
+                odom = [odometry.iloc[odometry_index][k] for k in ODOMETRY_LOCATIONS]
+                odom += [odometry.iloc[odometry_index][k] for k in ODOMETRY_RPY]
                 #odom_dict = {k: v for k, v in zip(ODOMETRY_OUTPUT_NAMES, odom.to_numpy())}
                 # Find closest transform message to currect point cloud message
 
                 tf_indicies = np.argsort(np.abs(transforms['Time'].to_numpy() - row['Time']))
-                for idx in tf_indicies:
-                    try:
-                        tf = yaml.safe_load(transforms.iloc[idx]['transforms'][1:-1])
-                        break
-                    except:
-                        print(transforms.iloc[idx]['transforms'])
-              
+                
+                tf_string = transforms.iloc[tf_indicies[0]]['transforms'][1:-1].replace(', ', '\n')
+                tf = yaml.safe_load(tf_string)
+            
                 # Reformat string representation of fields into list of dataclasses
                 fields = [FieldDataClass(*varify(s)) for s in chunker(re.split('\n|, ', row['fields'][1:-1]), 4)]
                 row['fields'] = fields
@@ -172,7 +170,7 @@ if __name__ == '__main__':
                     except:
                         print(tf)
                         exit()
-                np.save(dataset_dir + data_dir + 'odometry/' + str(index).zfill(4), odom.to_numpy())
+                np.save(dataset_dir + data_dir + 'odometry/' + str(index).zfill(4), np.array(odom))
                 
                 # Write point clouds and odometry to .log file for octomap
                 file.write(f'NODE {" ".join([str(x) for x in odom])}\n')
@@ -181,4 +179,3 @@ if __name__ == '__main__':
                     print("{:.2f}".format(index / num_point_clouds))
             
             
-
