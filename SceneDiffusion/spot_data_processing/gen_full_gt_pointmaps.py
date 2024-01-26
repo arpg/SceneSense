@@ -31,7 +31,7 @@ for sequence_name in SEQUENCE_NAMES:
     trans_files = natsorted(trans_files)
     
     sequence_path = os.path.join(dataset_dir, raw_data, sequence_name)
-    pcd_ = o3d.io.read_point_cloud(os.path.join(sequence_path, 'IRL_lab_and_below.pcd'))
+    pcd_ = o3d.io.read_point_cloud(os.path.join(sequence_path, 'IRL.pcd'))
     # iterate through each pose
     for i, _ in enumerate(odom_files):
         print(sequence_name, " " , odom_files[i], " ", trans_files[i])

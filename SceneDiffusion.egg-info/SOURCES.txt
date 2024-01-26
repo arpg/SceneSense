@@ -1,5 +1,6 @@
 README.md
 setup.py
+test_pcd.txt
 SceneDiffusion/__init__.py
 SceneDiffusion/full_model_training.py
 SceneDiffusion/gen_full_conditioning.py
@@ -23,8 +24,13 @@ SceneDiffusion.egg-info/PKG-INFO
 SceneDiffusion.egg-info/SOURCES.txt
 SceneDiffusion.egg-info/dependency_links.txt
 SceneDiffusion.egg-info/top_level.txt
+SceneDiffusion/__pycache__/__init__.cpython-37.pyc
 SceneDiffusion/spot_data_processing/__init__.py
+SceneDiffusion/spot_data_processing/gen_full_conditioning.py
 SceneDiffusion/spot_data_processing/gen_full_gt_pointmaps.py
 SceneDiffusion/spot_data_processing/process_data.py
+SceneDiffusion/spot_data_processing/view_input_pc_and_goal_pc.py
 SceneDiffusion/utils/__init__.py
 SceneDiffusion/utils/utils.py
+SceneDiffusion/utils/__pycache__/__init__.cpython-37.pyc
+SceneDiffusion/utils/__pycache__/utils.cpython-37.pyc
