@@ -18,6 +18,10 @@ pip install wandb
 
 pip install spconv
 
+pip install scipy
+
+pip install matplotlib
+
 ### git-lfs install: 
 curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
 
