@@ -14,9 +14,9 @@ trajs_dir = 'trajs/'
 
 
 if __name__ == '__main__':
-    sequence_name = 'IRL'
+    sequence_name = 'CSEL'
 
-    pcd = o3d.io.read_point_cloud('/home/brendan/spot_data/dataset/raw/IRL/IRL.pcd')
+    pcd = o3d.io.read_point_cloud('/home/brendan/spot_data/dataset/raw/CSEL/CSEL.pcd')
     points = np.asarray(pcd.points)
     points = points[points[:, 2] < 1]
     points = points[points[:, 2] > -1.2]
