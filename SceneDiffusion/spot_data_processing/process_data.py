@@ -4,6 +4,7 @@ from bagpy import bagreader
 import pandas as pd
 import os.path
 import numpy as np
+from typing import List, Iterator
 from scipy.spatial.transform import Rotation as R
 import re
 import io
@@ -61,6 +62,12 @@ def load_chunk_csv_pandas(topic_file_name: str, chunk_size: int):
         for chunk in reader:
             yield chunk
 
+def load_chunk_csv_pandas_multi(topic_file_names: List[str], chunk_sizes: List[int], num_chunks: int):
+
+    readers = [pd.read_csv(name, iterator=True) for name, chunk_size in zip(topic_file_names)]
+    for _ in range(num_chunks):
+        yield [reader.get_chunk(chunk_size) for reader, chunk_size in zip(readers, chunk_sizes)]
+
 
 # f = open("explore_test/sample_octomap_running.txt", "a")
 # write_str = "NODE " + str(depth_cam_pos[0]) +" " + str(depth_cam_pos[1]) + " " + str(depth_cam_pos[2]) + " " + str(depth_cam_rot[0]) + " " + str(depth_cam_rot[1])  + " " + str(depth_cam_rot[2])  + "\n"
@@ -112,11 +119,11 @@ if __name__ == '__main__':
 
     # Paths
     base_path = '/home/brendan/spot_data/'
-    bag_name = 'CSEL'
+    bag_name = 'IRL'
     dataset_dir = '/home/brendan/spot_data/dataset/raw/'
-    data_dir = 'CSEL/'
+    data_dir = 'IRL/'
     odometry_topic_name = '/D02/throttled_odometry'
-    #point_cloud_topic_name = '/D02/throttled_point_cloud'
+    point_cloud_topic_name = '/D02/throttled_point_cloud'
     tf_topic_name = '/throttled_tf'
     octomap_topic_name = '/D02/merged_map'
     octomap_in_topic_name = '/D02/throttled_octomap_in'
@@ -127,22 +134,19 @@ if __name__ == '__main__':
 
 
     # Build .csv files
-    num_point_clouds = bag.topic_table.iloc[2]['Message Count']
+    tt = bag.topic_table.set_index('Topics')
+    num_point_clouds = tt.loc['/D02/throttled_point_cloud']['Message Count']
+    num_octompa_in = tt.loc['/D02/throttled_octomap_in']['Message Count']
     text_output_filename = base_path + bag_name + '.log'
     tf_file_name = build_csv(base_path + bag_name, tf_topic_name, bag)
     odometry_file_name = build_csv(base_path + bag_name, odometry_topic_name, bag)
-    #point_cloud_file_name = build_csv(base_path + bag_name, point_cloud_topic_name, bag)
+    point_cloud_file_name = build_csv(base_path + bag_name, point_cloud_topic_name, bag)
     octomap_file_name = build_csv(base_path + bag_name, octomap_topic_name, bag)
     octomap_in_file_name = build_csv(base_path + bag_name, octomap_in_topic_name, bag)
 
     # Load .csv files into memory
     transforms = load_full_csv(tf_file_name)
     odometry = load_full_csv(odometry_file_name)
-
-
-    import bagpy
-    from bagpy import bagreader
-    import matplotlib.pyplot as plt
     
  
     # Get information about the bag
@@ -178,8 +182,18 @@ if __name__ == '__main__':
     os.makedirs(odom_path, exist_ok=True)
     # Loop over all point clouds
     with open(text_output_filename, 'w') as file:
+
+        num_chunks, remaining = divmod(num_point_clouds)
+        pc_chunks = [100 for _ in range(num_chunks)] + [remaining]
+        octo_chunks = [num_octompa_in // num_chunks for _ in range(num_chunks)] + [num_octompa_in % num_chunks]
+
+        print(len(pc_chunks), len(octo_chunks))
+        print(pc_chunks, octo_chunks)
+        exit()
+
         # Iterate over 100 row chunks of point cloud csv
-        for point_clouds in load_chunk_csv_pandas(octomap_in_file_name, 100):
+        #for point_clouds in load_chunk_csv_pandas(octomap_in_file_name, 100):
+        for pc, octo in load_chunk_csv_pandas_multi([octomap_in_file_name, point_cloud_file_name], ):
             # Iterate over each row
             for index, row in point_clouds.iterrows():
 
