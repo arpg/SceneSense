@@ -28,6 +28,7 @@ resolution = 0.1
 
 #load the training folders
 SEQUENCE_NAMES = ['IRL', 'ECOT', 'RUSTANDY']
+SEQUENCE_NAMES = ['IRL']
 dataset_dir = '/home/brendan/spot_data/dataset/'
 raw_data = 'raw/'
 trajs_dir = 'trajs/'
@@ -54,6 +55,8 @@ for sequence_name in SEQUENCE_NAMES:
     pc_files = [s for s in os.listdir(os.path.join(dataset_dir, raw_data, sequence_name, 'point_clouds/'))]
     pc_files = natsorted(pc_files)
     #get poses form files
+    cond_path = os.path.join(dataset_dir, trajs_dir, sequence_name, 'conditioning')
+    os.makedirs(cond_path, exist_ok=True)
     for idx, pc_file in enumerate(pc_files):
         print(sequence_name, " ", pc_file)
         #load the image data

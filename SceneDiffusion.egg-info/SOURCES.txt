@@ -26,9 +26,11 @@ SceneDiffusion.egg-info/dependency_links.txt
 SceneDiffusion.egg-info/top_level.txt
 SceneDiffusion/__pycache__/__init__.cpython-37.pyc
 SceneDiffusion/spot_data_processing/__init__.py
+SceneDiffusion/spot_data_processing/full_model_training_spot.py
 SceneDiffusion/spot_data_processing/gen_full_conditioning.py
 SceneDiffusion/spot_data_processing/gen_full_gt_pointmaps.py
 SceneDiffusion/spot_data_processing/process_data.py
+SceneDiffusion/spot_data_processing/view_gt_and_cond.py
 SceneDiffusion/spot_data_processing/view_input_pc_and_goal_pc.py
 SceneDiffusion/utils/__init__.py
 SceneDiffusion/utils/utils.py

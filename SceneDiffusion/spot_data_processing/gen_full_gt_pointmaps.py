@@ -15,7 +15,8 @@ from copy import deepcopy
 
 resolution = 0.1
 
-SEQUENCE_NAMES = ['IRL', 'ECOT', 'RUSTANDY']
+#SEQUENCE_NAMES = ['IRL', 'ECOT', 'RUSTANDY']
+SEQUENCE_NAMES = ['IRL']
 
 #load the training folders
 dataset_dir = '/home/brendan/spot_data/dataset/'
@@ -24,6 +25,10 @@ trajs_dir = 'trajs/'
 
 for sequence_name in SEQUENCE_NAMES:
     
+    # odom_path = 
+    # os.makedirs(odom_path, exist_ok=True)
+    # transforms_path = 
+    # os.makedirs(transforms_path, exist_ok=True)
     #get poses form files
     odom_files = [s for s in os.listdir(os.path.join(dataset_dir, raw_data, sequence_name, 'odometry/'))]
     odom_files = natsorted(odom_files)
@@ -32,6 +37,9 @@ for sequence_name in SEQUENCE_NAMES:
     
     sequence_path = os.path.join(dataset_dir, raw_data, sequence_name)
     pcd_ = o3d.io.read_point_cloud(os.path.join(sequence_path, 'IRL.pcd'))
+    
+    gt_path = os.path.join(dataset_dir, trajs_dir, sequence_name, 'gt_point_maps')
+    os.makedirs(gt_path, exist_ok=True)
     # iterate through each pose
     for i, _ in enumerate(odom_files):
         print(sequence_name, " " , odom_files[i], " ", trans_files[i])
@@ -64,6 +72,6 @@ for sequence_name in SEQUENCE_NAMES:
                                          x_y_bounds = [-2, 2],
                                           z_bounds = [-1.4, 0.9])
         print(pointmap.shape)
-        np.save(os.path.join(dataset_dir, trajs_dir, sequence_name, 'gt_point_maps', odom_files[i].split('.')[0] + '.npy'), pointmap) 
+        np.save(os.path.join(gt_path, odom_files[i].split('.')[0] + '.npy'), pointmap) 
     # break
     # o3d.visualization.draw_geometries([pcd])

@@ -140,8 +140,8 @@ if __name__ == '__main__':
     text_output_filename = base_path + bag_name + '.log'
     tf_file_name = build_csv(base_path + bag_name, tf_topic_name, bag)
     odometry_file_name = build_csv(base_path + bag_name, odometry_topic_name, bag)
-    point_cloud_file_name = build_csv(base_path + bag_name, point_cloud_topic_name, bag)
-    octomap_file_name = build_csv(base_path + bag_name, octomap_topic_name, bag)
+    #point_cloud_file_name = build_csv(base_path + bag_name, point_cloud_topic_name, bag)
+    #octomap_file_name = build_csv(base_path + bag_name, octomap_topic_name, bag)
     octomap_in_file_name = build_csv(base_path + bag_name, octomap_in_topic_name, bag)
 
     # Load .csv files into memory
@@ -183,19 +183,19 @@ if __name__ == '__main__':
     # Loop over all point clouds
     with open(text_output_filename, 'w') as file:
 
-        num_chunks, remaining = divmod(num_point_clouds)
-        pc_chunks = [100 for _ in range(num_chunks)] + [remaining]
-        octo_chunks = [num_octompa_in // num_chunks for _ in range(num_chunks)] + [num_octompa_in % num_chunks]
+        # num_chunks, remaining = divmod(num_point_clouds)
+        # pc_chunks = [100 for _ in range(num_chunks)] + [remaining]
+        # octo_chunks = [num_octompa_in // num_chunks for _ in range(num_chunks)] + [num_octompa_in % num_chunks]
 
-        print(len(pc_chunks), len(octo_chunks))
-        print(pc_chunks, octo_chunks)
-        exit()
+        # print(len(pc_chunks), len(octo_chunks))
+        # print(pc_chunks, octo_chunks)
+        # exit()
 
         # Iterate over 100 row chunks of point cloud csv
         #for point_clouds in load_chunk_csv_pandas(octomap_in_file_name, 100):
-        for pc, octo in load_chunk_csv_pandas_multi([octomap_in_file_name, point_cloud_file_name], ):
+        for octo in load_chunk_csv_pandas(octomap_in_file_name, 100):
             # Iterate over each row
-            for index, row in point_clouds.iterrows():
+            for index, row in octo.iterrows():
 
                 # Find closest odometry message to current point cloud message
                 odometry_index = np.argmin(np.abs(odometry['Time'].to_numpy() - row['Time']))
