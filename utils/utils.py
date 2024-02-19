@@ -142,14 +142,15 @@ def pc_to_pointmap(pointcloud, voxel_size  = 0.1, x_y_bounds = [-1.5, 1.5], z_bo
 
     return point_map
 
-def pointmap_to_pc(pointmap, voxel_size  = 0.1, x_y_bounds = [-1.5, 1.5], z_bounds = [-1.4, 0.9]):
+#####THere is something here with the threshold for prediction that was making our predictions worse!
+def pointmap_to_pc(pointmap, voxel_size  = 0.1, x_y_bounds = [-1.5, 1.5], z_bounds = [-1.4, 0.9], prediction_thresh = 0.8):
     #setup empty pointcloud
     arr = np.empty((0,3), np.single())
     #reads in a pointmap and returns a pointcloud
     for y_idx,y_val in enumerate(pointmap):
         for x_idx, x_val in enumerate(y_val):
             for z_idx, z_val in enumerate(x_val):
-                if z_val == 1:
+                if z_val > prediction_thresh:
                     arr = np.append(arr, np.array([[x_idx*voxel_size + voxel_size/2,
                                                     y_idx*voxel_size + voxel_size/2,
                                                     z_idx*voxel_size + voxel_size/2]]), axis = 0)
@@ -283,7 +284,7 @@ def get_IoU(gt, prediction):
     return np.count_nonzero(intsection)/np.count_nonzero(overlap)
 
 
-def inpainting_pointmaps_w_freespace(model, noise_scheduler, conditioning, width, inpainting_target, inpainting_unocc, torch_device = "cpu", denoising_steps = 50, guidance_scale = 15, sample_batch_size = 1):
+def inpainting_pointmaps_w_freespace(model, noise_scheduler, conditioning, width, inpainting_target, inpainting_unocc, torch_device = "cpu", denoising_steps = 50, guidance_scale = 2, sample_batch_size = 1):
     #set up initialize noise scheudler and noise to be operated on
     noise_scheduler.set_timesteps(denoising_steps)
     noise = torch.randn(inpainting_target.shape)
@@ -292,6 +293,9 @@ def inpainting_pointmaps_w_freespace(model, noise_scheduler, conditioning, width
     #get the coordinates of the occupied voxels
     input_coordinate = np.where(voxel_grid > 0.9)
     print(input_coordinate)
+    #get the coordinates of the unoccupied voxels
+    unnoc_grid = torch.tensor(inpainting_unocc, dtype = torch.float)
+    unnoc_coordinate = np.where(unnoc_grid > 0.9)
     # print("shape: ", input_coordinate.shape)
 
     #generate noise to be diffused
@@ -314,7 +318,9 @@ def inpainting_pointmaps_w_freespace(model, noise_scheduler, conditioning, width
         #get the noisy scan points
         #this adds noise to voxel grid which is our conditioning targets
         noisy_images = noise_scheduler.add_noise(voxel_grid, noise, timesteps = torch.tensor([t.item()]))
-
+        #WE ACTUALLY NEED TO TURN THIS TO Zeros so we do 1 -
+        #I think this 1- operation might mess it up
+        noisy_unoc_images = noise_scheduler.add_noise(1 - unnoc_grid, noise, timesteps = torch.tensor([t.item()]))
         # print(latents.shape)
         #add in the noise image wehre the input scans are
         #replace the data with the overwrited noisified current octomap image
@@ -331,8 +337,17 @@ def inpainting_pointmaps_w_freespace(model, noise_scheduler, conditioning, width
             # print(z_val, x_val, y_val)
             #replace the latent value with the new noisified input value
             latents[0][z_val, x_val, y_val] = noisy_images[z_val, x_val, y_val]
-        
-        #     break
+        #also iterate through all the coordinates and input our freespace
+        for idx, z_val in enumerate(unnoc_coordinate[0]):
+            #we are iterating though the tuple using the first coord
+            x_val = unnoc_coordinate[1][idx]
+            y_val = unnoc_coordinate[2][idx]
+            # print(latents.shape)
+            # print(noisy_images.shape)
+            # print(z_val, x_val, y_val)
+            #replace the latent value with the new noisified input value
+            latents[0][z_val, x_val, y_val] = noisy_unoc_images[z_val, x_val, y_val]
+        # EXPECT THESE 
         # break
         # expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
         latent_model_input = torch.cat([latents] * 2)
