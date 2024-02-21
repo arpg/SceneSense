@@ -85,25 +85,25 @@ torch_device = "cpu"
 # model = UNet2DConditionModel.from_pretrained("alre5639/full_rgbd_unet_512_more_pointnet_short", revision = "1f1755c2e9947f51c16a156d34f9a3e58d02bd4a")
 # # model = UNet2DConditionModel.from_pretrained("alre5639/diff_unet")
 # conditioning_model = get_model()
-# conditioning_model.load_state_dict(torch.load("/home/arpg/Documents/SceneDiffusion/data/full_sim_pointnet_weights_more_pointnet_short/145"))
+# conditioning_model.load_state_dict(torch.load("/hdd/sceneSense_data/data/full_sim_pointnet_weights_more_pointnet_short/145"))
 # conditioning_model.load_state_dict(torch.load("/home/arpg/Documents/SceneDiffusion/conditioning_model_weights/cond_model" + str(217)))
 model = UNet2DConditionModel.from_pretrained("alre5639/full_rgbd_unet_512_more_pointnet", revision = "b063adc01ea748b7a4dbfb7e180eedf741aef536")
 conditioning_model = get_model()
-conditioning_model.load_state_dict(torch.load("/home/arpg/Documents/SceneDiffusion/data/full_sim_pointnet_weights_more_pointnet/171"))
+conditioning_model.load_state_dict(torch.load("/hdd/sceneSense_data/data/full_sim_pointnet_weights_more_pointnet/171"))
 
 #get the running octomap
-pcd_file_path = '/home/arpg/Documents/habitat-lab/running_octomap/running_occ.pcd'
+pcd_file_path = '/home/arpg/Documents/habitat-lab/running_octomap copy/running_occ.pcd'
 pcd = o3d.io.read_point_cloud(pcd_file_path)
 colors = np.zeros((len(np.asarray(pcd.points)), 3))
 pcd.colors = o3d.utility.Vector3dVector(colors)
 #get the gt prediction
-gt_file_path = '/home/arpg/Documents/habitat-lab/running_octomap/gt_occ_point.pcd'
+gt_file_path = '/home/arpg/Documents/habitat-lab/running_octomap copy/gt_occ_point.pcd'
 gt_pcd = o3d.io.read_point_cloud(gt_file_path)
 #load just the points at the current pose
 gt_points = np.asarray(gt_pcd.points)
 #get the current pose of the robot
-curr_coor = np.loadtxt("/home/arpg/Documents/habitat-lab/running_octomap/curr_pose.txt")
-curr_rot= np.loadtxt("/home/arpg/Documents/habitat-lab/running_octomap/curr_heading.txt")
+curr_coor = np.loadtxt("/home/arpg/Documents/habitat-lab/running_octomap copy/curr_pose.txt")
+curr_rot= np.loadtxt("/home/arpg/Documents/habitat-lab/running_octomap copy/curr_heading.txt")
 local_gt_points = points_within_distance(curr_coor[0],curr_coor[2],gt_points,2.0)
 #remove the lower floors
 local_gt_points = local_gt_points[local_gt_points[:,1] > -1.4]
@@ -121,7 +121,7 @@ local_pcd.colors = o3d.utility.Vector3dVector(colors)
 ########################################3
 #get the local conditioning
 #load the training folders
-training_dirs = "/home/arpg/Documents/habitat-lab/running_octomap/"
+training_dirs = "/home/arpg/Documents/habitat-lab/running_octomap copy/"
 gen = PointToVoxel(vsize_xyz=[0.01, 0.01, 0.01],
                         coors_range_xyz=[-10, -10, -10, 10, 10, 10],
                         num_point_features=6,
@@ -211,7 +211,7 @@ local_octomap_points = points_within_distance(curr_coor[0],
 #remove the lower floors
 local_octomap_points = local_octomap_points[local_octomap_points[:,1] > -1.4]
 #remove the celing
-local_octomap_points = local_octomap_points[local_octomap_points[:,1] < 0.9]
+local_octomap_points = local_octomap_points[local_octomap_points[:,1] < 1.5]
 local_octomap_pcd = o3d.geometry.PointCloud()
 local_octomap_pcd.points = o3d.utility.Vector3dVector(local_octomap_points)
 
@@ -315,6 +315,11 @@ pcd_inpaint = o3d.geometry.PointCloud()
 
 # print("inpainted shape: ", inpained_points.shape)
 pcd_inpaint.points = o3d.utility.Vector3dVector(inpained_points)
+#just get the predicted pcd
+rotated_points = copy.deepcopy(pcd_inpaint)
+R = rotated_points.get_rotation_matrix_from_xyz((np.pi/2, 0, 0))
+rotated_points.rotate(R, center=(0, 0, 0))
+o3d.visualization.draw_geometries([rotated_points])
 colors = np.zeros((len(np.asarray(pcd_inpaint.points)), 3))
 colors[:,0] = 1
 colors[:,1] = 0
