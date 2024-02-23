@@ -58,7 +58,7 @@ torch_device = "cpu"
 #hres the full output
 model = UNet2DConditionModel.from_pretrained("alre5639/full_rgbd_unet_512_more_pointnet", revision = "b063adc01ea748b7a4dbfb7e180eedf741aef536")
 conditioning_model = get_model()
-conditioning_model.load_state_dict(torch.load("/home/arpg/Documents/SceneDiffusion/data/full_sim_pointnet_weights_more_pointnet/171"))
+conditioning_model.load_state_dict(torch.load("/hdd/sceneSense_data/data/full_sim_pointnet_weights_more_pointnet/171"))
 
 #make sure all the data moves through the network correctly
 sample_noise_start = torch.randn(1,23,40, 40)

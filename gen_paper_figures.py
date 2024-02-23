@@ -89,7 +89,7 @@ torch_device = "cpu"
 # conditioning_model.load_state_dict(torch.load("/home/arpg/Documents/SceneDiffusion/conditioning_model_weights/cond_model" + str(217)))
 model = UNet2DConditionModel.from_pretrained("alre5639/full_rgbd_unet_512_more_pointnet", revision = "b063adc01ea748b7a4dbfb7e180eedf741aef536")
 conditioning_model = get_model()
-conditioning_model.load_state_dict(torch.load("/home/arpg/Documents/SceneDiffusion/data/full_sim_pointnet_weights_more_pointnet/171"))
+conditioning_model.load_state_dict(torch.load("/hdd/sceneSense_data/data/full_sim_pointnet_weights_more_pointnet/171"))
 
 #get the running octomap
 pcd_file_path = '/home/arpg/Documents/habitat-lab/running_octomap/running_occ.pcd'
@@ -121,7 +121,7 @@ R = pcd.get_rotation_matrix_from_xyz((np.pi/2, 0, 0))
 # coor.rotate(R, center=(0, 0, 0))
 # # plot as voxels
 # # pcd_vox = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd, voxel_size=0.1)
-# o3d.visualization.draw_geometries([pcd])
+o3d.visualization.draw_geometries([local_pcd])
 
 ###########show the ground truth
 #remove the celing
@@ -132,19 +132,19 @@ R = pcd.get_rotation_matrix_from_xyz((np.pi/2, 0, 0))
 ########get the local data from that
 
 # # plot as voxels
-local_octomap_points = points_within_distance(curr_coor[0],
-                        curr_coor[2],
-                        np.asarray(pcd.points),
-                        2.0)
-local_octomap_points = local_octomap_points[local_octomap_points[:,1] < 2]
-local_octomap_pcd = o3d.geometry.PointCloud()
-local_octomap_pcd.points = o3d.utility.Vector3dVector(local_octomap_points)
-local_octomap_pcd.rotate(R, center=(0, 0, 0))
-o3d.visualization.draw_geometries([local_octomap_pcd])
+# local_octomap_points = points_within_distance(curr_coor[0],
+#                         curr_coor[2],
+#                         np.asarray(pcd.points),
+#                         2.0)
+# local_octomap_points = local_octomap_points[local_octomap_points[:,1] < 2]
+# local_octomap_pcd = o3d.geometry.PointCloud()
+# local_octomap_pcd.points = o3d.utility.Vector3dVector(local_octomap_points)
+# local_octomap_pcd.rotate(R, center=(0, 0, 0))
+# o3d.visualization.draw_geometries([local_octomap_pcd])
 
-############# Gaussian Noise to start
-noise = torch.randn((23,40,40))
-noise = (noise>0.5).float()
+# ############# Gaussian Noise to start
+# noise = torch.randn((23,40,40))
+# noise = (noise>0.5).float()
 # noise_pcd = o3d.geometry.PointCloud()
 # inpained_points = utils.pointmap_to_pc(out,
 #                                          voxel_size = 0.1,

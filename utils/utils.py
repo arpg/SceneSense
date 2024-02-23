@@ -6,6 +6,7 @@ from tqdm.auto import tqdm
 import copy
 from scipy.spatial.transform import Rotation
 import math
+import open3d as o3d
 
 def inverse_homogeneous_transform(matrix):
     if matrix.shape != (4, 4):
@@ -284,7 +285,7 @@ def get_IoU(gt, prediction):
     return np.count_nonzero(intsection)/np.count_nonzero(overlap)
 
 
-def inpainting_pointmaps_w_freespace(model, noise_scheduler, conditioning, width, inpainting_target, inpainting_unocc, torch_device = "cpu", denoising_steps = 50, guidance_scale = 2, sample_batch_size = 1):
+def inpainting_pointmaps_w_freespace(model, noise_scheduler, conditioning, width, inpainting_target, inpainting_unocc, torch_device = "cpu", denoising_steps = 50, guidance_scale = 3, sample_batch_size = 1):
     #set up initialize noise scheudler and noise to be operated on
     noise_scheduler.set_timesteps(denoising_steps)
     noise = torch.randn(inpainting_target.shape)
@@ -361,14 +362,47 @@ def inpainting_pointmaps_w_freespace(model, noise_scheduler, conditioning, width
         noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
         # compute the previous noisy sample x_t -> x_t-1
         latents = noise_scheduler.step(noise_pred, t, latents).prev_sample
+
+        ############################################
+        #just for viewing the outputs
+        ###############################################
+        # inpained_points = pointmap_to_pc(latents[0],
+        #                                  voxel_size = 0.1,
+        #                                  x_y_bounds = [-2, 2],
+        #                                   z_bounds = [-1.4, 0.9])
+        # pcd_inpaint = o3d.geometry.PointCloud()
+
+        # # print("inpainted shape: ", inpained_points.shape)
+        # pcd_inpaint.points = o3d.utility.Vector3dVector(inpained_points)
+        # colors = np.zeros((len(np.asarray(pcd_inpaint.points)), 3))
+        # R = pcd_inpaint.get_rotation_matrix_from_xyz((np.pi/2, 0, 0))
+        # pcd_inpaint.rotate(R, center=(0, 0, 0))
+        # # colors[:,0] = 1
+        # # colors[:,1] = 0
+        # # colors[:,2] = 0
+        # # pcd_inpaint.colors = o3d.utility.Vector3dVector(colors)
+        # # pcd_inpaint.transform(hm_tx_mat)
+        # o3d.visualization.draw_geometries([pcd_inpaint])
+
+
     #one more inpainting step
-    # for idx, z_val in enumerate(input_coordinate[0]):
-    #     #we are iterating though the tuple using the first coord
-    #     x_val = input_coordinate[1][idx]
-    #     y_val = input_coordinate[2][idx]
-    #     # print(latents.shape)
-    #     # print(noisy_images.shape)
-    #     # print(z_val, x_val, y_val)
-    #     #replace the latent value with the new noisified input value
-    #     latents[0][z_val, x_val, y_val] = noisy_images[z_val, x_val, y_val]
+    for idx, z_val in enumerate(input_coordinate[0]):
+        #we are iterating though the tuple using the first coord
+        x_val = input_coordinate[1][idx]
+        y_val = input_coordinate[2][idx]
+        # print(latents.shape)
+        # print(noisy_images.shape)
+        # print(z_val, x_val, y_val)
+        #replace the latent value with the new noisified input value
+        latents[0][z_val, x_val, y_val] = voxel_grid[z_val, x_val, y_val]
+    #also iterate through all the coordinates and input our freespace
+    for idx, z_val in enumerate(unnoc_coordinate[0]):
+        #we are iterating though the tuple using the first coord
+        x_val = unnoc_coordinate[1][idx]
+        y_val = unnoc_coordinate[2][idx]
+        # print(latents.shape)
+        # print(noisy_images.shape)
+        # print(z_val, x_val, y_val)
+        #replace the latent value with the new noisified input value
+        latents[0][z_val, x_val, y_val] = 1 - unnoc_grid[z_val, x_val, y_val]
     return latents
