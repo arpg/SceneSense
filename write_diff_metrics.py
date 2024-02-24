@@ -20,7 +20,7 @@ import re
 from spconv.pytorch.utils import PointToVoxel
 import cv2
 from cleanfid import fid
-
+import sys
 
 def points_within_distance(x, y, points, distance):
     """
@@ -98,261 +98,188 @@ house_path = "/hdd/sceneDiff_data/house_1/"
 #get all the directories
 house_dirs = natsorted(os.listdir(house_path))
 # print(house_dirs)nning octomap
-for step in house_dirs[1::]:
-    #get the running octomap
-    pcd_file_path = house_path + step + "/running_octomap/running_occ.pcd"
-    pcd = o3d.io.read_point_cloud(pcd_file_path)
-    colors = np.zeros((len(np.asarray(pcd.points)), 3))
-    pcd.colors = o3d.utility.Vector3dVector(colors)
-    #get the gt prediction
-    gt_file_path = '/home/arpg/Documents/habitat-lab/running_octomap/gt_occ_point.pcd'
-    gt_pcd = o3d.io.read_point_cloud(gt_file_path)
-    #load just the points at the current pose
-    gt_points = np.asarray(gt_pcd.points)
-    #get the current pose of the robot
-    curr_coor = np.loadtxt( house_path + step + "/running_octomap/curr_pose.txt")
-    curr_rot= np.loadtxt( house_path + step + "/running_octomap/curr_heading.txt")
-    local_gt_points = points_within_distance(curr_coor[0],curr_coor[2],gt_points,2.0)
-    #remove the lower floors
-    local_gt_points = local_gt_points[local_gt_points[:,1] > -1.4]
-    #remove the celing
-    local_gt_points = local_gt_points[local_gt_points[:,1] < 0.9]
-    local_pcd = o3d.geometry.PointCloud()
-    local_pcd.points = o3d.utility.Vector3dVector(local_gt_points)
-    #add color to the points 
-    colors = np.zeros((len(np.asarray(local_pcd.points)), 3))
-    # colors[:,0] = colors[:,1] + 1
-    local_pcd.colors = o3d.utility.Vector3dVector(colors)
+pcd = None
+gt_pcd = None
+print(sys.argv)
+curr_dir = sys.argv[1]
+step = house_dirs[int(curr_dir)]
 
-    ####################################
-    #now do the diffusion
-    ########################################3
-    #get the local conditioning
-    #load the training folders
-    training_dirs = house_path + step + "/running_octomap/"
-    gen = PointToVoxel(vsize_xyz=[0.01, 0.01, 0.01],
-                            coors_range_xyz=[-10, -10, -10, 10, 10, 10],
-                            num_point_features=6,
-                            max_num_voxels=65536,
-                            max_num_points_per_voxel=1)
-    # o3d.visualization.draw_geometries([local_pcd, pcd])
-    image = cv2.imread(training_dirs + "rgb_.png")
-    #load the point data
-    pc = np.load(training_dirs + "sample_pc.npy")
-    print(pc.shape)
-    colors = image.reshape(-1, image.shape[2])
+#load the gt data
+gt_file_path = '/home/arpg/Documents/habitat-lab/running_octomap/gt_occ_point.pcd'
+gt_pcd = o3d.io.read_point_cloud(gt_file_path)
+#load the occupided data
+pcd_file_path = house_path + step + "/running_octomap/running_occ.pcd"
+running_occ_pcd = o3d.io.read_point_cloud(pcd_file_path)
+#load the pose data
+curr_coor = np.loadtxt( house_path + step + "/running_octomap/curr_pose.txt")
+curr_rot = np.loadtxt( house_path + step + "/running_octomap/curr_heading.txt")
+rotation_obj = Rotation.from_rotvec(curr_rot)
+hm_tx_mat = utils.homogeneous_transform(curr_coor, rotation_obj.as_quat())
 
-    #create the full rgbd pc
-    #this is also what we will pass through pointnet 
-    rgbd_pc = np.append(pc, colors, axis = 1)
+####################################
+#Get the Conditioning
+########################################3
+#get the local conditioning
+#load the training folders
+training_dirs = house_path + step + "/running_octomap/"
+gen = PointToVoxel(vsize_xyz=[0.01, 0.01, 0.01],
+                        coors_range_xyz=[-10, -10, -10, 10, 10, 10],
+                        num_point_features=6,
+                        max_num_voxels=65536,
+                        max_num_points_per_voxel=1)
+# o3d.visualization.draw_geometries([local_pcd, pcd])
+image = cv2.imread(training_dirs + "rgb_.png")
+#load the point data
+pc = np.load(training_dirs + "sample_pc.npy")
+print(pc.shape)
+colors = image.reshape(-1, image.shape[2])
 
-    conditioning_pcd = o3d.geometry.PointCloud()
-    conditioning_pcd.points = o3d.utility.Vector3dVector(rgbd_pc[:,0:3])
-    conditioning_pcd.colors = o3d.utility.Vector3dVector(rgbd_pc[:,3:6]/255)
+#create the full rgbd pc
+#this is also what we will pass through pointnet 
+rgbd_pc = np.append(pc, colors, axis = 1)
 
-    #transfomr the point could to the robot frame
-    rotation_obj = Rotation.from_rotvec(curr_rot)
-    hm_tx_mat = utils.homogeneous_transform(curr_coor, rotation_obj.as_quat())
-    conditioning_pcd.transform(hm_tx_mat)
+conditioning_pcd = o3d.geometry.PointCloud()
+conditioning_pcd.points = o3d.utility.Vector3dVector(rgbd_pc[:,0:3])
+conditioning_pcd.colors = o3d.utility.Vector3dVector(rgbd_pc[:,3:6]/255)
 
-    # This shows the idea visualization using gt
-    # o3d.visualization.draw_geometries([conditioning_pcd,local_pcd, pcd])
+#transfomr the point could to the robot frame
+rotation_obj = Rotation.from_rotvec(curr_rot)
+hm_tx_mat = utils.homogeneous_transform(curr_coor, rotation_obj.as_quat())
+conditioning_pcd.transform(hm_tx_mat)
+
+# This shows the idea visualization using gt
+# o3d.visualization.draw_geometries([conditioning_pcd,local_pcd, pcd])
 
 
 
-    voxels_th, indices_th, num_p_in_vx_th = gen(torch.tensor(rgbd_pc), empty_mean = True)
-    voxels_np = voxels_th.numpy() 
-    conditioning_voxel_points = np.reshape(voxels_np, (-1,6))
-    print(conditioning_voxel_points.shape)
-    # add batch size
-    conditioning_voxel_points = conditioning_voxel_points.T
-    conditioning_voxel_points = conditioning_voxel_points[None, :,:]
-    #swap axis 1 and 2
+voxels_th, indices_th, num_p_in_vx_th = gen(torch.tensor(rgbd_pc), empty_mean = True)
+voxels_np = voxels_th.numpy() 
+conditioning_voxel_points = np.reshape(voxels_np, (-1,6))
+print(conditioning_voxel_points.shape)
+# add batch size
+conditioning_voxel_points = conditioning_voxel_points.T
+conditioning_voxel_points = conditioning_voxel_points[None, :,:]
+#swap axis 1 and 2
 
-    conditioning_voxel_points = torch.tensor(conditioning_voxel_points.astype(np.single))
+conditioning_voxel_points = torch.tensor(conditioning_voxel_points.astype(np.single))
 
-    pointnet_conditioing = conditioning_model(conditioning_voxel_points)
-    pointnet_conditioing = pointnet_conditioing.swapaxes(1,2)
-    # ###########################
-    # # this is for the diffused map
-    # ######################################
+pointnet_conditioing = conditioning_model(conditioning_voxel_points)
+pointnet_conditioing = pointnet_conditioing.swapaxes(1,2)
 
-    # # final_pointcloud = torch.from_numpy(final_pointcloud)
-    # noise_scheduler = DDPMScheduler(num_train_timesteps=1000)
-    # # #do the denoising:
-    # # post_model_conditioning_batch = conditioning_model(final_pointcloud)
-    # # post_model_conditioning_batch = post_model_conditioning_batch.swapaxes(1, 2)
-    # # # print(post_model_conditioning_batch[13].shape)
-    # # test_conditioning = post_model_conditioning_batch[13]
-    # # test_conditioning = test_conditioning[None,:,:]
-    # print(pointnet_conditioing.shape)
-    # point_map = utils.denoise_guided_inference(model, noise_scheduler,pointnet_conditioing, 40)
-    # point_map_np = point_map.numpy()
-    # print(point_map_np.shape)
-    # diffused_pointcloud =utils.pointmap_to_pc(point_map_np[0],
-    #                                          voxel_size = 0.1,
-    #                                          x_y_bounds = [-2, 2],
-    #                                           z_bounds = [-1.4, 0.9])
-
-    # pcd_diff = o3d.geometry.PointCloud()
-    # pcd_diff.points = o3d.utility.Vector3dVector(diffused_pointcloud)
-    # colors = np.zeros((len(np.asarray(pcd_diff.points)), 3))
-    # colors[:,0] = 0
-    # colors[:,1] = 0
-    # colors[:,2] = 0
-    # pcd_diff.colors = o3d.utility.Vector3dVector(colors)
-    # #transform to fit room 
-    # pcd_diff.transform(hm_tx_mat)
-    # # o3d.visualization.draw_geometries([pcd_diff,pcd])
-
-    ###################################
-    # heres inpainting without freespace
-    ################################################
-    coor = o3d.geometry.TriangleMesh.create_coordinate_frame()
-    noise_scheduler = DDPMScheduler(num_train_timesteps=1000)
-    #get the local pointmap
-    local_octomap_points = points_within_distance(curr_coor[0],
-                            curr_coor[2],
-                            np.asarray(pcd.points),
-                            2.0)
-    #remove lower floor and ground
-    #remove the lower floors
-    local_octomap_points = local_octomap_points[local_octomap_points[:,1] > -1.4]
-    #remove the celing
-    local_octomap_points = local_octomap_points[local_octomap_points[:,1] < 2.0]
-    local_octomap_pcd = o3d.geometry.PointCloud()
-    local_octomap_pcd.points = o3d.utility.Vector3dVector(local_octomap_points)
-
-    # colors = np.zeros((len(np.asarray(local_octomap_pcd.points)), 3))
-    local_octomap_pcd.colors = o3d.utility.Vector3dVector(colors)
-    # o3d.visualization.draw_geometries([pcd,local_octomap_pcd])
-    #transfomr the local points to 0,0
-    zeroed_local_pcd = copy.deepcopy(local_octomap_pcd)
-    zeroed_local_pcd.transform(utils.inverse_homogeneous_transform(hm_tx_mat))
-    #turn the points into a pointmap
-    local_octomap_pm = utils.pc_to_pointmap(np.asarray(zeroed_local_pcd.points), 
+###################################
+# Generate Local Occupied PC info
+################################################
+#first shift the local map into the correct frame
+running_occ_pcd_shift = copy.deepcopy(running_occ_pcd).transform(utils.inverse_homogeneous_transform(hm_tx_mat))
+local_occ_points = points_within_distance(0.0,0.0,np.asarray(running_occ_pcd_shift.points),2.0)
+ #remove the lower floors
+local_occ_points = local_occ_points[local_occ_points[:,1] > -1.6]
+# #remove the celing
+local_occ_points = local_occ_points[local_occ_points[:,1] < 0.9]
+#convert it into a pointmap
+local_octomap_pm = utils.pc_to_pointmap(local_occ_points, 
                                             voxel_size = 0.1,
                                             x_y_bounds = [-2.0, 2.0],
                                             z_bounds = [-1.4, 0.9])
-    returned_pc = utils.pointmap_to_pc(pointmap = local_octomap_pm,
-                                            voxel_size = 0.1,
-                                            x_y_bounds = [-2, 2],
-                                            z_bounds = [-1.4, 0.9])
-    print(returned_pc.shape)
+returned_pc = utils.pointmap_to_pc(pointmap = local_octomap_pm,
+                                        voxel_size = 0.1,
+                                        x_y_bounds = [-2, 2],
+                                        z_bounds = [-1.4, 0.9])
+reconstructed_pcd = o3d.geometry.PointCloud()
+reconstructed_pcd.points = o3d.utility.Vector3dVector(returned_pc)
+# colors = np.zeros((len(np.asarray(reconstructed_pcd.points)), 3))
+# reconstructed_pcd.colors = o3d.utility.Vector3dVector(colors)
+# local_pcd = o3d.geometry.PointCloud()
+# local_pcd.points = o3d.utility.Vector3dVector(local_occ_points)
+# o3d.visualization.draw_geometries([reconstructed_pcd])
 
-    reconstructed_pcd = o3d.geometry.PointCloud()
-    reconstructed_pcd.points = o3d.utility.Vector3dVector(returned_pc)
-    colors = np.zeros((len(np.asarray(reconstructed_pcd.points)), 3))
-    reconstructed_pcd.colors = o3d.utility.Vector3dVector(colors)
-    #transform back to location
-    #there is a shift I am messing up here or something
-    
-    #do the inpainting
-    # inpained_pm = utils.inpainting_pointmaps(model,
-    #                                         noise_scheduler,
-    #                                         pointnet_conditioing,
-    #                                         40,
-    #                                         local_octomap_pm)
-    #convert to pointcloud
-    # inpained_points = utils.pointmap_to_pc(inpained_pm[0],
-    #                                          voxel_size = 0.1,
-    #                                          x_y_bounds = [-2, 2],
-    #                                           z_bounds = [-1.4, 0.9])
-    # pcd_inpaint = o3d.geometry.PointCloud()
+###################################
+# Generate Local Unocc PC info
+################################################
+unoc_pcd_path = house_path + step + "/running_octomap/unoc.pcd"
+unoc_pcd = o3d.io.read_point_cloud(unoc_pcd_path)
+unoc_pcd.transform(utils.inverse_homogeneous_transform(hm_tx_mat))
+unoc_local_points = points_within_distance(0,0,np.asarray(unoc_pcd.points),2.0)
 
-    # print("inpainted shape: ", inpained_points.shape)
-    # pcd_inpaint.points = o3d.utility.Vector3dVector(inpained_points)
-    # colors = np.zeros((len(np.asarray(pcd_inpaint.points)), 3))
-    # colors[:,0] = 1
-    # colors[:,1] = 0
-    # colors[:,2] = 0
-    # pcd_inpaint.colors = o3d.utility.Vector3dVector(colors)
-    # #transform to fit room 
-    # pcd_inpaint.transform(hm_tx_mat)
-    # voxel_grid_octo = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd,
-    #                                                               voxel_size=0.1)
-    # voxel_grid_diff = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd_inpaint,
-    #                                                               voxel_size=0.1)                                                              
-    # o3d.visualization.draw_geometries([voxel_grid_octo,voxel_grid_diff])
+# #remove the lower floors
+unoc_local_points = unoc_local_points[unoc_local_points[:,1] > -1.4]
+# #remove the celing
+unoc_local_points = unoc_local_points[unoc_local_points[:,1] < 0.9]
 
-    #do the inpainting w/ freespace
-    #load the freespace octomap
+unoc_pm = utils.pc_to_pointmap(unoc_local_points, 
+                                        voxel_size = 0.1,
+                                        x_y_bounds = [-2.0, 2.0],
+                                        z_bounds = [-1.4, 0.9])
+returned_unoc_pc = utils.pointmap_to_pc(pointmap = unoc_pm,
+                                        voxel_size = 0.1,
+                                        x_y_bounds = [-2, 2],
+                                        z_bounds = [-1.4, 0.9])
+unoc_recon_pcd = o3d.geometry.PointCloud()
+unoc_recon_pcd.points = o3d.utility.Vector3dVector(returned_unoc_pc)
+colors = np.zeros((len(np.asarray(unoc_recon_pcd.points)), 3))
+colors[:,0] = 1
+unoc_recon_pcd.colors = o3d.utility.Vector3dVector(colors)
 
-    unoc_pcd_path = house_path + step + "/running_octomap/test_unoc.pcd"
-    unoc_pcd = o3d.io.read_point_cloud(unoc_pcd_path)
-    unoc_pcd.transform(utils.inverse_homogeneous_transform(hm_tx_mat))
-    unoc_local_points = points_within_distance(0,0,np.asarray(unoc_pcd.points),2.0)
+# #do the freespace inpainting
+# o3d.visualization.draw_geometries([reconstructed_pcd, unoc_recon_pcd])
+noise_scheduler = DDPMScheduler(num_train_timesteps=1000)
 
-    # #remove the lower floors
-    unoc_local_points = unoc_local_points[unoc_local_points[:,1] > -1.4]
-    # #remove the celing
-    unoc_local_points = unoc_local_points[unoc_local_points[:,1] < 0.9]
+inpained_pm = utils.inpainting_pointmaps_w_freespace(model,
+                                        noise_scheduler,
+                                        pointnet_conditioing,
+                                        40,
+                                        local_octomap_pm,
+                                        unoc_pm)
+inpained_points = utils.pointmap_to_pc(inpained_pm[0],
+                                        voxel_size = 0.1,
+                                        x_y_bounds = [-2, 2],
+                                        z_bounds = [-1.4, 0.9])
+pcd_inpaint = o3d.geometry.PointCloud()
 
-    unoc_local_pcd = o3d.geometry.PointCloud()
-    unoc_local_pcd.points = o3d.utility.Vector3dVector(unoc_local_points) 
+# # # print("inpainted shape: ", inpained_points.shape)
+pcd_inpaint.points = o3d.utility.Vector3dVector(inpained_points)
+colors = np.zeros((len(np.asarray(pcd_inpaint.points)), 3))
+colors[:,0] = 1
+colors[:,1] = 0
+colors[:,2] = 0
+pcd_inpaint.colors = o3d.utility.Vector3dVector(colors)
+pcd_inpaint.transform(hm_tx_mat)
+# o3d.visualization.draw_geometries([pcd_inpaint, pcd])
+# #transform pcd to origin
+# #there is an offset thing going on
 
-    # o3d.visualization.draw_geometries([unoc_local_pcd, coor])
-
-    unoc_pm = utils.pc_to_pointmap(unoc_local_points, 
-                                            voxel_size = 0.1,
-                                            x_y_bounds = [-2.0, 2.0],
-                                            z_bounds = [-1.4, 0.9])
-    returned_unoc_pc = utils.pointmap_to_pc(pointmap = unoc_pm,
-                                            voxel_size = 0.1,
-                                            x_y_bounds = [-2, 2],
-                                            z_bounds = [-1.4, 0.9])
-    unoc_recon_pcd = o3d.geometry.PointCloud()
-    unoc_recon_pcd.points = o3d.utility.Vector3dVector(returned_unoc_pc)
-    colors = np.zeros((len(np.asarray(unoc_recon_pcd.points)), 3))
-    colors[:,0] = 1
-    unoc_recon_pcd.colors = o3d.utility.Vector3dVector(colors)
-
-    #do the freespace inpainting
-    # o3d.visualization.draw_geometries([unoc_recon_pcd, reconstructed_pcd])
-    inpained_pm = utils.inpainting_pointmaps_w_freespace(model,
-                                            noise_scheduler,
-                                            pointnet_conditioing,
-                                            40,
-                                            local_octomap_pm,
-                                            unoc_pm)
-    inpained_points = utils.pointmap_to_pc(inpained_pm[0],
-                                            voxel_size = 0.1,
-                                            x_y_bounds = [-2, 2],
-                                            z_bounds = [-1.4, 0.9])
-    pcd_inpaint = o3d.geometry.PointCloud()
-
-    # # print("inpainted shape: ", inpained_points.shape)
-    pcd_inpaint.points = o3d.utility.Vector3dVector(inpained_points)
-    colors = np.zeros((len(np.asarray(pcd_inpaint.points)), 3))
-    colors[:,0] = 1
-    colors[:,1] = 0
-    colors[:,2] = 0
-    pcd_inpaint.colors = o3d.utility.Vector3dVector(colors)
-    pcd_inpaint.transform(hm_tx_mat)
-    # o3d.visualization.draw_geometries([pcd_inpaint, pcd])
-    #transform pcd to origin
-    #there is an offset thing going on
-
-    # #I think the freespace inpainting might be wrong need to convicnce ourselves it is working
-    print(inpained_pm.shape)
-    for i, img in enumerate(np.asarray(inpained_pm[0])):
-        #normalize the outputs to 255 in each pixel
-        output = copy.deepcopy(img) * 255
-        #dupicate it to be an image
-        output = np.repeat(output[:, :, np.newaxis], 3, axis=2)
-        print(output.shape)
-        #save it as a cv2 image
-        cv2.imwrite(house_path + step + "/fid_data/ss_predicted/" + str(i) + ".png", output )
+# #I think the freespace inpainting might be wrong need to convicnce ourselves it is working
+print(inpained_pm.shape)
+for i, img in enumerate(np.asarray(inpained_pm[0])):
+    #normalize the outputs to 255 in each pixel
+    output = copy.deepcopy(img) * 255
+    #dupicate it to be an image
+    output = np.repeat(output[:, :, np.newaxis], 3, axis=2)
+    # print(output.shape)
+    #save it as a cv2 image
+    cv2.imwrite(house_path + step + "/fid_data/ss_predicted/" + str(i) + ".png", output )
 
 
-    #compute the fid
-    fid_val = fid.compute_fid(house_path + step + "/fid_data/ss_predicted/", house_path + step + "/fid_data/gt/")
-    np.savetxt(house_path + step + "/diffusion_fid_val.txt", np.array([fid_val]))
-    print(fid_val)
-    kid_val = fid.compute_kid(house_path + step + "/fid_data/ss_predicted/", house_path + step + "/fid_data/gt/")
-    np.savetxt(house_path + step + "/diffusion_kid_val.txt", np.array([kid_val]))
-    print("kid: ", kid_val)
-    np.save(house_path + step + "/diffusion_kid_val.txt", np.array([kid_val]))
-    o3d.io.write_point_cloud(house_path + step + "/diffused_pc.pcd", pcd_inpaint)
-    print("one complete")
-    # o3d.visualization.draw_geometries([pcd_inpaint, pcd])
+#compute the fid
+fid_val = fid.compute_fid(house_path + step + "/fid_data/ss_predicted/", house_path + step + "/fid_data/gt/")
+np.savetxt(house_path + step + "/diffusion_fid_val_30.txt", np.array([fid_val]))
+print(fid_val)
+kid_val = fid.compute_kid(house_path + step + "/fid_data/ss_predicted/", house_path + step + "/fid_data/gt/")
+np.savetxt(house_path + step + "/diffusion_kid_val_30.txt", np.array([kid_val]))
+print("kid: ", kid_val)
+o3d.io.write_point_cloud(house_path + step + "/diffused_pc_30.pcd", pcd_inpaint)
+# # print("one complete")
+o3d.visualization.draw_geometries([pcd_inpaint])
+
+
+# del pcd
+# del gt_pcd
+# del local_pcd
+# del conditioning_pcd
+# del local_octomap_pcd
+# del zeroed_local_pcd
+# del reconstructed_pcd
+# del unoc_local_pcd
+# del unoc_recon_pcd
+# del pcd_inpaint
+
