@@ -14,6 +14,7 @@ import struct
 from pypcd4 import PointCloud
 from dataclasses import dataclass
 import yaml
+import cv2
 
 ODOMETRY_LOCATIONS = ['pose.pose.position.x',
        'pose.pose.position.y', 'pose.pose.position.z']
@@ -69,21 +70,6 @@ def load_chunk_csv_pandas_multi(topic_file_names: List[str], chunk_sizes: List[i
     for _ in range(num_chunks):
         yield [reader.get_chunk(chunk_size) for reader, chunk_size in zip(readers, chunk_sizes)]
 
-
-# f = open("explore_test/sample_octomap_running.txt", "a")
-# write_str = "NODE " + str(depth_cam_pos[0]) +" " + str(depth_cam_pos[1]) + " " + str(depth_cam_pos[2]) + " " + str(depth_cam_rot[0]) + " " + str(depth_cam_rot[1])  + " " + str(depth_cam_rot[2])  + "\n"
-# # print(write_str)
-# f.write(write_str)
-# f.close()
-# #create pointcloud from depth image
-# print(observations["depth"].shape)
-# pointcloud = depth_to_pc(observations["depth"][:,:,0])
-# print(pointcloud.shape)
-# #save the pointclouda
-# with open("explore_test/sample_octomap_running.txt", "ab") as f:
-#     np.savetxt(f, pointcloud)
-# f.close()
-
 def jsonify(strings):
     string = '{'
     for s in strings:
@@ -119,15 +105,13 @@ class FieldDataClass(object):
 if __name__ == '__main__':
 
     # Paths
-    base_path = '/home/brendan/spot_data/'
-    bag_name = 'IRL'
-    dataset_dir = '/home/brendan/spot_data/dataset/raw/'
-    data_dir = 'IRL/'
-    odometry_topic_name = '/D02/throttled_odometry'
-    point_cloud_topic_name = '/D02/throttled_point_cloud'
-    tf_topic_name = '/throttled_tf'
-    octomap_topic_name = '/D02/merged_map'
-    octomap_in_topic_name = '/D02/throttled_octomap_in'
+    base_path = '/home/brendan/realsense_data/'
+    bag_name = 'doncey2'
+    dataset_dir = '/home/brendan/realsense_data/dataset/raw/'
+    data_dir = 'doncey2/'
+    point_cloud_topic_name = '/d400/throttled_point_cloud'
+    odom_topic_name = '/t265/odom/sample'
+    tf_topic_name = '/tf'
 
 
     # Read bagfile
@@ -136,42 +120,24 @@ if __name__ == '__main__':
 
     # Build .csv files
     tt = bag.topic_table.set_index('Topics')
-    num_point_clouds = tt.loc['/D02/throttled_point_cloud']['Message Count']
-    num_octompa_in = tt.loc['/D02/throttled_octomap_in']['Message Count']
+    num_point_clouds = tt.loc['/d400/throttled_point_cloud']['Message Count']
     text_output_filename = base_path + bag_name + '.log'
+
+    # camera_info_name = build_csv(base_path + bag_name, camera_info_topic_name, bag)
+    # raw_name = build_csv(base_path + bag_name, raw_topic_name, bag)
+    # tf_name = build_csv(base_path + bag_name, tf_topic_name, bag)
+    # depth_name = build_csv(base_path + bag_name, depth_topic_name, bag)
+
+    point_cloud_file_name = build_csv(base_path + bag_name, point_cloud_topic_name, bag)
     tf_file_name = build_csv(base_path + bag_name, tf_topic_name, bag)
-    odometry_file_name = build_csv(base_path + bag_name, odometry_topic_name, bag)
-    #point_cloud_file_name = build_csv(base_path + bag_name, point_cloud_topic_name, bag)
-    #octomap_file_name = build_csv(base_path + bag_name, octomap_topic_name, bag)
-    octomap_in_file_name = build_csv(base_path + bag_name, octomap_in_topic_name, bag)
+    odom_file_name = build_csv(base_path + bag_name, odom_topic_name, bag)
+
 
     # Load .csv files into memory
     transforms = load_full_csv(tf_file_name)
-    odometry = load_full_csv(odometry_file_name)
+    odometry = load_full_csv(odom_file_name)
     
- 
-    # Get information about the bag
-    # info_dict = bag.message_by_topic(octomap_topic_name, start_time=0, stop_time=1)
-    
-    # # Extract Octomap messages
-    # octomap_msgs = bag.message_by_topic(octomap_topic_name, start_time=0, stop_time=info_dict['Time'][0])
-    
-    # Save Octomap data to .bt file
-    # output_bt_file = '/home/brendan/spot_data/output_octomap.bt'
-    # with open(output_bt_file, 'wb') as bt_file:
-    #     for msg in octomap_msgs:
-    #         bt_file.write(msg[1].data)
-    # with open(file_path, 'r') as file:
-    #     # Create a CSV reader
-    #     csv_reader = csv.reader(file)
-    
-    #     # Iterate over the lines in reverse order
-    #     for row in reversed(list(csv_reader)):
-    #         # 'row' now contains the last row of the CSV file
-    #         final_map = row
-    #         break  # Exit the loop after getting the last row
 
-    #print(type(final_map), len(final_map))
     odometry[['roll', 'pitch', 'yaw']] = R.from_quat(odometry[ODOMETRY_QUAT].to_numpy()).as_rotvec()
 
 
@@ -181,7 +147,7 @@ if __name__ == '__main__':
     os.makedirs(transforms_path, exist_ok=True)
     odom_path = os.path.join(dataset_dir, data_dir, 'odometry/')
     os.makedirs(odom_path, exist_ok=True)
-    # Loop over all point clouds
+    # # Loop over all point clouds
     with open(text_output_filename, 'w') as file:
 
         # num_chunks, remaining = divmod(num_point_clouds)
@@ -194,15 +160,29 @@ if __name__ == '__main__':
 
         # Iterate over 100 row chunks of point cloud csv
         #for point_clouds in load_chunk_csv_pandas(octomap_in_file_name, 100):
-        for octo in load_chunk_csv_pandas(octomap_in_file_name, 100):
+        for chunk in load_chunk_csv_pandas(point_cloud_file_name, 100):
             # Iterate over each row
-            for index, row in octo.iterrows():
+            for index, row in chunk.iterrows():
+
+
+                
+                print(row)
+                #img = row['data'].encode().decode('unicode-escape').encode('ISO-8859-1')[2:-1]
+                # print(img)
+                # img = np.frombuffer(row['data'].encode('utf-8').decode('unicode-escape').encode('ISO-8859-1')[2:-1], dtype=np.uint8)
+                # img = img.reshape(row['height'], row['width'], 2)
+                # print(img.shape)
+                # img = cv2.imdecode(img, cv2.IMREAD_UNCHANGED)
+                # cv2.imshow('image', img)
+                # img = cv2.imdecode(img, cv2.IMREAD_UNCHANGED)
+                # cv2.imshow('image', img.reshape(row['height'], row['width']))
 
                 # Find closest odometry message to current point cloud message
                 odometry_index = np.argmin(np.abs(odometry['Time'].to_numpy() - row['Time']))
+
                 odom = [odometry.iloc[odometry_index][k] for k in ODOMETRY_LOCATIONS]
                 odom += [odometry.iloc[odometry_index][k] for k in ODOMETRY_RPY]
-                #odom_dict = {k: v for k, v in zip(ODOMETRY_OUTPUT_NAMES, odom.to_numpy())}
+                odom_dict = {k: v for k, v in zip(ODOMETRY_OUTPUT_NAMES, np.array(odom))}
                 # Find closest transform message to currect point cloud message
 
                 tf_indicies = np.argsort(np.abs(transforms['Time'].to_numpy() - row['Time']))
@@ -214,11 +194,26 @@ if __name__ == '__main__':
                 fields = [FieldDataClass(*varify(s)) for s in chunker(re.split('\n|, ', row['fields'][1:-1]), 4)]
                 row['fields'] = fields
 
-                            # Encode str of binary represenation of point cloud into bytes var
-                
-                cloud = row['data'].encode().decode('unicode-escape').encode('ISO-8859-1')[2:-1]
-                row['data'] = np.frombuffer(row['data'].encode())
-                pc = PointCloud.from_msg(row)
+                fields = [
+                    ('x', np.float32),
+                    ('y', np.float32),
+                    ('z', np.float32),
+                    ('rgb', np.bytes_)
+                    # Add more fields as needed
+                ]
+
+                # Create a NumPy dtype for the structured array
+                dtype = np.dtype(fields)
+                num_points = len(row['data']) // dtype.itemsize
+                # Use the struct module to unpack the binary data into a NumPy array
+                pc = np.frombuffer(row['data'].encode('utf-8'), dtype=dtype, count=row['width'])
+                print(pc)
+                print(pc.shape)
+                pc = np.array([[x.x, x.y, x.z] for x in pc])
+                print(pc.shape)
+                # cloud = row['data'].encode('utf-8').decode('unicode-escape').encode('ISO-8859-1')[2:-1]
+                # row['data'] = np.frombuffer(cloud)
+                # pc = PointCloud.from_msg(row)
                 
 
                 # Save point clouds, odometry, and transforms
