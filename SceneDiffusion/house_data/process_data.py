@@ -11,10 +11,12 @@ import io
 import json
 import struct
 #from pypcd import pypcd
-from pypcd4 import PointCloud
+#import open3d as o3d
 from dataclasses import dataclass
 import yaml
+#import sensor_msgs.point_cloud2 as pc2
 import cv2
+from pypcd4 import PointCloud
 
 ODOMETRY_LOCATIONS = ['pose.pose.position.x',
        'pose.pose.position.y', 'pose.pose.position.z']
@@ -89,6 +91,18 @@ def pc_to_str(pc):
 
     return ''.join([' '.join([str(x) for x in xx]) + '\n' for xx in pc[:, :3]])
 
+
+def byte_string_to_pc(data):
+    format_string = '<fffccc'
+
+    # Calculate the size of each point in bytes
+    point_size = struct.calcsize(format_string)
+
+    # Use struct to unpack the byte string into a list of tuples
+    points_list = struct.unpack_from(format_string * (len(data) // point_size), data)
+
+    # Convert the list of tuples to a NumPy array
+    return np.array(points_list).reshape(-1, 6)
 @dataclass
 class FieldDataClass(object):
     name: str
@@ -150,23 +164,12 @@ if __name__ == '__main__':
     # # Loop over all point clouds
     with open(text_output_filename, 'w') as file:
 
-        # num_chunks, remaining = divmod(num_point_clouds)
-        # pc_chunks = [100 for _ in range(num_chunks)] + [remaining]
-        # octo_chunks = [num_octompa_in // num_chunks for _ in range(num_chunks)] + [num_octompa_in % num_chunks]
-
-        # print(len(pc_chunks), len(octo_chunks))
-        # print(pc_chunks, octo_chunks)
-        # exit()
-
         # Iterate over 100 row chunks of point cloud csv
         #for point_clouds in load_chunk_csv_pandas(octomap_in_file_name, 100):
         for chunk in load_chunk_csv_pandas(point_cloud_file_name, 100):
             # Iterate over each row
             for index, row in chunk.iterrows():
 
-
-                
-                print(row)
                 #img = row['data'].encode().decode('unicode-escape').encode('ISO-8859-1')[2:-1]
                 # print(img)
                 # img = np.frombuffer(row['data'].encode('utf-8').decode('unicode-escape').encode('ISO-8859-1')[2:-1], dtype=np.uint8)
@@ -194,26 +197,10 @@ if __name__ == '__main__':
                 fields = [FieldDataClass(*varify(s)) for s in chunker(re.split('\n|, ', row['fields'][1:-1]), 4)]
                 row['fields'] = fields
 
-                fields = [
-                    ('x', np.float32),
-                    ('y', np.float32),
-                    ('z', np.float32),
-                    ('rgb', np.bytes_)
-                    # Add more fields as needed
-                ]
 
-                # Create a NumPy dtype for the structured array
-                dtype = np.dtype(fields)
-                num_points = len(row['data']) // dtype.itemsize
-                # Use the struct module to unpack the binary data into a NumPy array
-                pc = np.frombuffer(row['data'].encode('utf-8'), dtype=dtype, count=row['width'])
-                print(pc)
-                print(pc.shape)
-                pc = np.array([[x.x, x.y, x.z] for x in pc])
-                print(pc.shape)
-                # cloud = row['data'].encode('utf-8').decode('unicode-escape').encode('ISO-8859-1')[2:-1]
-                # row['data'] = np.frombuffer(cloud)
-                # pc = PointCloud.from_msg(row)
+                
+                row['data'] = row['data'].encode().decode('unicode-escape').encode('ISO-8859-1')[2:-1]
+                pc = PointCloud.from_msg(row)
                 
 
                 # Save point clouds, odometry, and transforms
