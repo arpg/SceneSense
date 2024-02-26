@@ -102,6 +102,8 @@ pcd = None
 gt_pcd = None
 print(sys.argv)
 curr_dir = sys.argv[1]
+diff_steps = sys.argv[2]
+s_guide = sys.argv[3]
 step = house_dirs[int(curr_dir)]
 
 #load the gt data
@@ -173,18 +175,18 @@ pointnet_conditioing = pointnet_conditioing.swapaxes(1,2)
 running_occ_pcd_shift = copy.deepcopy(running_occ_pcd).transform(utils.inverse_homogeneous_transform(hm_tx_mat))
 local_occ_points = points_within_distance(0.0,0.0,np.asarray(running_occ_pcd_shift.points),2.0)
  #remove the lower floors
-local_occ_points = local_occ_points[local_occ_points[:,1] > -1.6]
+local_occ_points = local_occ_points[local_occ_points[:,1] > -1.5]
 # #remove the celing
-local_occ_points = local_occ_points[local_occ_points[:,1] < 0.9]
+local_occ_points = local_occ_points[local_occ_points[:,1] < 0.8]
 #convert it into a pointmap
 local_octomap_pm = utils.pc_to_pointmap(local_occ_points, 
                                             voxel_size = 0.1,
                                             x_y_bounds = [-2.0, 2.0],
-                                            z_bounds = [-1.4, 0.9])
+                                            z_bounds = [-1.5, 0.8])
 returned_pc = utils.pointmap_to_pc(pointmap = local_octomap_pm,
                                         voxel_size = 0.1,
                                         x_y_bounds = [-2, 2],
-                                        z_bounds = [-1.4, 0.9])
+                                        z_bounds = [-1.5, 0.8])
 reconstructed_pcd = o3d.geometry.PointCloud()
 reconstructed_pcd.points = o3d.utility.Vector3dVector(returned_pc)
 # colors = np.zeros((len(np.asarray(reconstructed_pcd.points)), 3))
@@ -202,18 +204,18 @@ unoc_pcd.transform(utils.inverse_homogeneous_transform(hm_tx_mat))
 unoc_local_points = points_within_distance(0,0,np.asarray(unoc_pcd.points),2.0)
 
 # #remove the lower floors
-unoc_local_points = unoc_local_points[unoc_local_points[:,1] > -1.4]
+unoc_local_points = unoc_local_points[unoc_local_points[:,1] > -1.5]
 # #remove the celing
-unoc_local_points = unoc_local_points[unoc_local_points[:,1] < 0.9]
+unoc_local_points = unoc_local_points[unoc_local_points[:,1] < 0.8]
 
 unoc_pm = utils.pc_to_pointmap(unoc_local_points, 
                                         voxel_size = 0.1,
                                         x_y_bounds = [-2.0, 2.0],
-                                        z_bounds = [-1.4, 0.9])
+                                        z_bounds = [-1.5, 0.8])
 returned_unoc_pc = utils.pointmap_to_pc(pointmap = unoc_pm,
                                         voxel_size = 0.1,
                                         x_y_bounds = [-2, 2],
-                                        z_bounds = [-1.4, 0.9])
+                                        z_bounds = [-1.5, 0.8])
 unoc_recon_pcd = o3d.geometry.PointCloud()
 unoc_recon_pcd.points = o3d.utility.Vector3dVector(returned_unoc_pc)
 colors = np.zeros((len(np.asarray(unoc_recon_pcd.points)), 3))
@@ -229,11 +231,15 @@ inpained_pm = utils.inpainting_pointmaps_w_freespace(model,
                                         pointnet_conditioing,
                                         40,
                                         local_octomap_pm,
-                                        unoc_pm)
+                                        unoc_pm,
+                                        torch_device = "cpu",
+                                        denoising_steps = int(diff_steps),
+                                        guidance_scale = int(s_guide),
+                                        sample_batch_size = 1)
 inpained_points = utils.pointmap_to_pc(inpained_pm[0],
                                         voxel_size = 0.1,
                                         x_y_bounds = [-2, 2],
-                                        z_bounds = [-1.4, 0.9])
+                                        z_bounds = [-1.5, 0.8])
 pcd_inpaint = o3d.geometry.PointCloud()
 
 # # # print("inpainted shape: ", inpained_points.shape)
@@ -262,14 +268,14 @@ for i, img in enumerate(np.asarray(inpained_pm[0])):
 
 #compute the fid
 fid_val = fid.compute_fid(house_path + step + "/fid_data/ss_predicted/", house_path + step + "/fid_data/gt/")
-np.savetxt(house_path + step + "/diffusion_fid_val_30.txt", np.array([fid_val]))
+np.savetxt(house_path + step + "/diffusion_fid_val_" + diff_steps + "steps_guide" + s_guide+ ".txt", np.array([fid_val]))
 print(fid_val)
 kid_val = fid.compute_kid(house_path + step + "/fid_data/ss_predicted/", house_path + step + "/fid_data/gt/")
-np.savetxt(house_path + step + "/diffusion_kid_val_30.txt", np.array([kid_val]))
+np.savetxt(house_path + step + "/diffusion_kid_val_" + diff_steps + "steps_guide" + s_guide+ ".txt", np.array([kid_val]))
 print("kid: ", kid_val)
-o3d.io.write_point_cloud(house_path + step + "/diffused_pc_30.pcd", pcd_inpaint)
+o3d.io.write_point_cloud(house_path + step + "/diffused_pc_" + diff_steps + "steps_guide" + s_guide+ ".pcd", pcd_inpaint)
 # # print("one complete")
-o3d.visualization.draw_geometries([pcd_inpaint])
+# o3d.visualization.draw_geometries([pcd_inpaint])
 
 
 # del pcd

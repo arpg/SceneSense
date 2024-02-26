@@ -21,6 +21,7 @@ from spconv.pytorch.utils import PointToVoxel
 import cv2
 from cleanfid import fid
 from natsort import natsorted
+import shutil
 
 def points_within_distance(x, y, points, distance):
     """
@@ -132,9 +133,9 @@ for step in house_dirs:
     #get the local data
     local_gt_points = points_within_distance(0.0,0.0,np.asarray(gt_points_shift.points),2.0)
     #remove the lower floors
-    local_gt_points = local_gt_points[local_gt_points[:,1] > -1.4]
+    local_gt_points = local_gt_points[local_gt_points[:,1] > -1.5]
     #remove the celing
-    local_gt_points = local_gt_points[local_gt_points[:,1] < 0.9]
+    local_gt_points = local_gt_points[local_gt_points[:,1] < 0.8]
 
     local_pcd = o3d.geometry.PointCloud()
     local_pcd.points = o3d.utility.Vector3dVector(local_gt_points)
@@ -154,11 +155,11 @@ for step in house_dirs:
     local_octomap_pm = utils.pc_to_pointmap(np.asarray(local_pcd.points), 
                                             voxel_size = 0.1,
                                             x_y_bounds = [-2.0, 2.0],
-                                            z_bounds = [-1.4, 0.9])
+                                            z_bounds = [-1.5, 0.8])
     returned_pc = utils.pointmap_to_pc(pointmap = local_octomap_pm,
                                             voxel_size = 0.1,
                                             x_y_bounds = [-2, 2],
-                                            z_bounds = [-1.4, 0.9])
+                                            z_bounds = [-1.5, 0.8])
     print(returned_pc.shape)
 
     reconstructed_pcd = o3d.geometry.PointCloud()
@@ -170,8 +171,11 @@ for step in house_dirs:
     # print(local_octomap_pm.shape)
 
     #now that is a pointmap slice it into individual pngs
+    shutil.rmtree(house_path + step + "/fid_data/gt/")
+    os.mkdir(house_path + step + "/fid_data/gt")
     for i, img in enumerate(local_octomap_pm):
         #normalize the outputs to 255 in each pixel
+        
         output = copy.deepcopy(img) * 255
         #dupicate it to be an image
         output = np.repeat(output[:, :, np.newaxis], 3, axis=2)
@@ -185,9 +189,9 @@ for step in house_dirs:
                             np.asarray(current_map_shift.points),
                             2.0)
     # local_octomap_points = local_octomap_points[local_octomap_points[:,1] < 0.8]
-    local_octomap_points = local_octomap_points[local_octomap_points[:,1] > -1.4]
+    local_octomap_points = local_octomap_points[local_octomap_points[:,1] > -1.5]
     #remove the celing
-    local_octomap_points = local_octomap_points[local_octomap_points[:,1] < 0.9]
+    local_octomap_points = local_octomap_points[local_octomap_points[:,1] < 0.8]
 
     local_octomap_pcd = o3d.geometry.PointCloud()
     local_octomap_pcd.points = o3d.utility.Vector3dVector(local_octomap_points)
@@ -197,9 +201,12 @@ for step in house_dirs:
     local_octomap_pm = utils.pc_to_pointmap(np.asarray(local_octomap_points), 
                                             voxel_size = 0.1,
                                             x_y_bounds = [-2.0, 2.0],
-                                            z_bounds = [-1.4, 0.9])
+                                            z_bounds = [-1.5, 0.8])
     # #now that is a pointmap slice it into individual pngs
+    shutil.rmtree(house_path + step + "/fid_data/predicted/")
+    os.mkdir(house_path + step + "/fid_data/predicted")
     for i, img in enumerate(local_octomap_pm):
+        
         #normalize the outputs to 255 in each pixel
         output = copy.deepcopy(img) * 255
         #dupicate it to be an image

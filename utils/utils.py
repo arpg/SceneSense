@@ -285,7 +285,7 @@ def get_IoU(gt, prediction):
     return np.count_nonzero(intsection)/np.count_nonzero(overlap)
 
 
-def inpainting_pointmaps_w_freespace(model, noise_scheduler, conditioning, width, inpainting_target, inpainting_unocc, torch_device = "cpu", denoising_steps = 50, guidance_scale = 3, sample_batch_size = 1):
+def inpainting_pointmaps_w_freespace(model, noise_scheduler, conditioning, width, inpainting_target, inpainting_unocc, torch_device = "cpu", denoising_steps = 30, guidance_scale = 3, sample_batch_size = 1):
     #set up initialize noise scheudler and noise to be operated on
     noise_scheduler.set_timesteps(denoising_steps)
     noise = torch.randn(inpainting_target.shape)
