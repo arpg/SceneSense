@@ -17,7 +17,8 @@ import yaml
 #import sensor_msgs.point_cloud2 as pc2
 import cv2
 from pypcd4 import PointCloud
-
+from scipy.spatial.transform import Rotation
+from SceneDiffusion import utils
 ODOMETRY_LOCATIONS = ['pose.pose.position.x',
        'pose.pose.position.y', 'pose.pose.position.z']
 
@@ -188,11 +189,24 @@ if __name__ == '__main__':
                 odom_dict = {k: v for k, v in zip(ODOMETRY_OUTPUT_NAMES, np.array(odom))}
                 # Find closest transform message to currect point cloud message
 
-                tf_indicies = np.argsort(np.abs(transforms['Time'].to_numpy() - row['Time']))
+                tf_indices = np.argsort(np.abs(transforms['Time'].to_numpy() - row['Time']))
                 
-                tf_string = transforms.iloc[tf_indicies[0]]['transforms'][1:-1].replace(', ', '\n')
-                tf = yaml.safe_load(tf_string)
-            
+                
+                tfs = []
+                rot_index = 0
+                for i in tf_indices:
+                   
+                    if len(tfs) >= 2:
+                        break
+                    tf = yaml.safe_load(transforms.iloc[tf_indices[i]]['transforms'][1:-1].replace(', ', '\n'))
+                    if tf['header']['frame_id'] == 't265_odom_frame' and (len(tfs) == 0 or tfs[0]['header']['frame_id'] != 't265_odom_frame'):
+                        tfs.append(tf)
+                    elif tf['header']['frame_id'] == '/t265_link' and (len(tfs) == 0 or tfs[0]['header']['frame_id'] != '/t265_link'):
+                        rot_index = len(tfs)
+                        tfs.append(tf)
+
+                # tf_string = transforms.iloc[tf_indices[0]]['transforms'][1:-1].replace(', ', '\n')
+                # tf = yaml.safe_load(tf_string)
                 # Reformat string representation of fields into list of dataclasses
                 fields = [FieldDataClass(*varify(s)) for s in chunker(re.split('\n|, ', row['fields'][1:-1]), 4)]
                 row['fields'] = fields
@@ -201,8 +215,21 @@ if __name__ == '__main__':
                 
                 row['data'] = row['data'].encode().decode('unicode-escape').encode('ISO-8859-1')[2:-1]
                 pc = PointCloud.from_msg(row)
-                
+                print(pc.fields)
 
+                rot = tfs[rot_index]['transform']['rotation']
+                rot = [rot[k] for k in ['x', 'y', 'z', 'w']]    
+                rotation_obj = Rotation.from_quat(rot)
+                hm_tx_mat = utils.homogeneous_transform([0, 0, 0], rotation_obj.as_quat())
+                #transform the pcd into the robot frame
+                
+                pc = pc.numpy()
+               
+                exit()
+                t = utils.inverse_homogeneous_transform(hm_tx_mat)
+                pc = t @ pc
+                pc = PointCloud.from_points(pc)
+                house_points = np.asarray(pc.points)
                 # Save point clouds, odometry, and transforms
                 pc.save(dataset_dir + data_dir + 'point_clouds/' + str(index).zfill(4) + '.pcd')
                 with open(dataset_dir + data_dir + 'transforms/' + str(index).zfill(4) + '.yaml', 'w') as f:

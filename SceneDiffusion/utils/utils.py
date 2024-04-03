@@ -90,6 +90,35 @@ def points_within_distance(x, y, points, distance):
 
     return points_within_distance
 
+
+def points_within_distance2(x, y, points, distance):
+    """
+    Find all 3D points within a specified distance from a given (x, y) location.
+
+    Parameters:
+    - x, y: The x and y coordinates of the location.
+    - points: NumPy array of shape (num_points, 3) representing 3D points.
+    - distance: The maximum distance for points to be considered within.
+
+    Returns:
+    - NumPy array of points within the specified distance.
+    """
+
+    # Extract x, y coordinates from the 3D points
+    #this actually needs to be xz
+    xy_coordinates = points[:, [0,1]]
+
+    # Calculate the Euclidean distance from the given location to all points
+    distances = np.linalg.norm(xy_coordinates - np.array([x, y]), axis=1)
+
+    # Find indices of points within the specified distance
+    within_distance_indices = np.where(distances <= distance)[0]
+
+    # Extract points within the distance
+    points_within_distance = points[within_distance_indices]
+
+    return points_within_distance
+
 def get_pose_and_pc_from_running_txt(path, pose_num):
     f = open(path, "r")
     node_count = 0
