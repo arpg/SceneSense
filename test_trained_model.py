@@ -16,14 +16,14 @@ from huggingface_hub import login
 from diffusers.optimization import get_cosine_schedule_with_warmup
 import utils.utils as utils
 
-model = UNet2DConditionModel.from_pretrained("alre5639/diff_unet_512_arpg")
+model = UNet2DConditionModel.from_pretrained("alre5639/full_rgbd_unet_512_more_pointnet_short", revision = "adde767c4a5238d047434ba5f2464751b30187d5")
 conditioning_model = get_model()
-conditioning_model.load_state_dict(torch.load("/home/arpg/Documents/SceneDiffusion/full_conditioning_weights/full_cond_model" + str(249)))
+conditioning_model.load_state_dict(torch.load("/home/arpg/Documents/SceneDiffusion/data/full_sim_pointnet_weights_more_pointnet_short/145"))
 
 
 #make sure all the data moves through the network correctly
-sample_noise_start = torch.randn(1,22,30, 30)
-sample_noise_target = torch.randn(1,22,30, 30)
+sample_noise_start = torch.randn(1,13,30, 30)
+sample_noise_target = torch.randn(1,13,30, 30)
 sample_pc_in = torch.randn(1, 3, 65536)
 #input to pointnet needs to be shape: 1, 3, 65536
 sample_conditioning = conditioning_model(sample_pc_in)

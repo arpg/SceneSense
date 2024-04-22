@@ -14,6 +14,7 @@ import wandb
 import random
 from huggingface_hub import login
 from diffusers.optimization import get_cosine_schedule_with_warmup
+import re
 
 login(token="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")
 wandb.init(

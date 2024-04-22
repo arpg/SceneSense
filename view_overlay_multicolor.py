@@ -96,13 +96,49 @@ house_path = "/hdd/sceneDiff_data/house_2/"
 #get all the directories
 house_dirs = natsorted(os.listdir(house_path))
 
+path = "/hdd/hm3d_glb/00027-cVppJowrUqs/cVppJowrUqs.glb"
+
+mesh = o3d.io.read_triangle_mesh(path,enable_post_processing=True)
+mesh.compute_vertex_normals()
 
 
-######################################
-#set the step
-step = 150
-#######################################
+#get all the directories
+house_dirs = natsorted(os.listdir(house_path))
+coor_arr = np.empty((0,3), float)
+for house_step in house_dirs[0:150]:
+    curr_coor = np.loadtxt( house_path + house_step + "/running_octomap/curr_pose.txt")
+    #need to swap y and z i think
+    curr_coor[[1,2]] = curr_coor[[2,1]]
+    curr_coor[1] = -curr_coor[1]
+    curr_coor = curr_coor[None,:]
+    
 
+    # print(curr_coor)
+    coor_arr = np.append(coor_arr, curr_coor, axis=0)
+
+#create a spline so it looks better
+# print(coor_arr[:,0])
+# tck = interpolate.splrep(coor_arr[:,0], coor_arr[:,1])
+# spline = interpolate.splev(0.1, tck)
+# print(spline.shape)
+#turn the path into a pointcloud
+coor_pcd = o3d.geometry.PointCloud()
+coor_pcd.points = o3d.utility.Vector3dVector(coor_arr)
+    ######################################
+    #set the step
+step = 20
+    #######################################
+    # global step
+    # try: step
+    # except NameError: step = 0
+
+print("step: ", step)
+
+pruned_point_arr = coor_arr[0:step,:]
+updated_coor_pcd = o3d.geometry.PointCloud()
+updated_coor_pcd.points = o3d.utility.Vector3dVector(pruned_point_arr)
+colors = np.zeros((len(np.asarray(updated_coor_pcd.points)), 3))
+updated_coor_pcd.colors = o3d.utility.Vector3dVector(colors)
 # diff_path = "/hdd/sceneDiff_data/house_2/step_" + str(step) + "/diffused_pc_30.pcd"
 #for house 2:
 diff_path = "/hdd/sceneDiff_data/combined_image_data_house_2/diff/pointcloud_" + str(step) + ".pcd"
@@ -142,24 +178,36 @@ occ_pcd = o3d.io.read_point_cloud(running_occ_path)
 #get local gt
 occ_point_shift = copy.deepcopy(occ_pcd).transform(utils.inverse_homogeneous_transform(hm_tx_mat))
 #get the local data
-local_occ_points = points_within_distance(0.0,0.0,np.asarray(occ_point_shift.points),2.0)
+# local_occ_points = points_within_distance(0.0,0.0,np.asarray(occ_point_shift.points),2.0)
+local_occ_points =np.asarray(occ_point_shift.points)
 #remove the lower floors
-local_occ_points = local_occ_points[local_occ_points[:,1] > -1.6]
+local_occ_points = local_occ_points[local_occ_points[:,1] > -1.7]
 #remove the celing
 local_occ_points = local_occ_points[local_occ_points[:,1] < 0.9]
+
+#########################3
+#masage for overlay
+#############################3
+
 local_occ_pcd = o3d.geometry.PointCloud()
 local_occ_pcd.points = o3d.utility.Vector3dVector(local_occ_points)
+local_occ_pcd.transform(hm_tx_mat)
+#get the points, pass by ref so i can update them
+tx_local_occ_points = np.asarray(local_occ_pcd.points)
+tx_local_occ_points[:, [1, 2]] = tx_local_occ_points[:, [2, 1]]
+tx_local_occ_points[:,1] = -tx_local_occ_points[:,1]
+tx_local_occ_points[:,2] = tx_local_occ_points[:,2] + 0.2
 
 #lets go through tall the dif fpoints and remove anything that is super close to a local point
 diff_points = np.asarray(dif_pcd.points)
 
 pruned_diff_points = np.empty((0,3), float)
 for point in diff_points:
-    if not(is_within_distance(point, local_occ_points, 0.09)):
-        pruned_diff_points = np.append(pruned_diff_points, point[None,:], axis = 0)
+    # if not(is_within_distance(point, local_occ_points, 0.09)):
+    pruned_diff_points = np.append(pruned_diff_points, point[None,:], axis = 0)
 
-print(diff_points.shape)
-print(pruned_diff_points.shape)
+# print(diff_points.shape)
+# print(pruned_diff_points.shape)
 
 #this just shifts stuff a little bit for the viewer
 pruned_diff_points[:,0] = pruned_diff_points[:,0] + 0.05
@@ -177,8 +225,8 @@ for point in pcd_gt_points:
     if not(is_within_distance(point, local_occ_points, 0.09)):
         pruned_gt_points = np.append(pruned_gt_points, point[None,:], axis = 0)
 
-print(diff_points.shape)
-print(pruned_diff_points.shape)
+# print(diff_points.shape)
+# print(pruned_diff_points.shape)
 
 #this just shifts stuff a little bit for the viewer
 # pruned_gt_points[:,0] = pruned_gt_points[:,0] + 0.05
@@ -191,8 +239,8 @@ pruned_gt_pcd.points = o3d.utility.Vector3dVector(pruned_gt_points)
 #########################
 #make diff a color gradiant:
 colors = np.zeros((len(np.asarray(pruned_diff_pcd.points)), 3))
-print(np.max(np.asarray(pruned_diff_pcd.points)[:,1], axis = 0))
-print(np.min(np.asarray(pruned_diff_pcd.points)[:,1], axis = 0))
+# print(np.max(np.asarray(pruned_diff_pcd.points)[:,1], axis = 0))
+# print(np.min(np.asarray(pruned_diff_pcd.points)[:,1], axis = 0))
 max_z = np.max(np.asarray(pruned_diff_pcd.points)[:,1], axis = 0)
 min_z = np.min(np.asarray(pruned_diff_pcd.points)[:,1], axis = 0)
 #create scaler constant
@@ -234,26 +282,139 @@ pruned_gt_pcd.colors = o3d.utility.Vector3dVector(colors)
 local_gt_vox = o3d.geometry.VoxelGrid.create_from_point_cloud(pruned_gt_pcd, voxel_size=0.1)
 
 # o3d.visualization.draw_geometries([local_gt_vox, local_occ_vox])
-def key_callback(vis):
-    ctr  = vis.get_view_control()
-    view_param =ctr.convert_to_pinhole_camera_parameters()
-    vis.clear_geometries()
 
-    
-    vis.add_geometry(local_occ_vox)
-    vis.add_geometry(local_gt_vox)
-    
-    parameters = o3d.io.read_pinhole_camera_parameters("ScreenCamera_2024-03-04-17-17-19.json")
-    ctr.convert_from_pinhole_camera_parameters(parameters)
+# ctr  = vis.get_view_control()
+# view_param =ctr.convert_to_pinhole_camera_parameters()
+# vis.clear_geometries()
 
-
+# vis.add_geometry(mesh)
+# vis.add_geometry(local_occ_vox)
+# vis.add_geometry(updated_coor_pcd)
+# # vis.add_geometry(coor)
+# # parameters = o3d.io.read_pinhole_camera_parameters("ScreenCamera_2024-03-04-17-17-19.json")
+# ctr.convert_from_pinhole_camera_parameters(view_param)
+num_local_occ = len(np.asarray(local_occ_pcd.points))
+num_diff_point = len(np.asarray(pruned_diff_pcd.points))
+print("local_occ: ", num_local_occ)
+print("num diff: ", num_diff_point)
+print("diff per occ: ", num_diff_point/num_local_occ)
+step += 1
 # ctr  = self.o3d_visualizer.get_view_control()
 # view_param =ctr.convert_to_pinhole_camera_parameters()
 
 
-vis = o3d.visualization.VisualizerWithKeyCallback()
-vis.create_window()
-vis.add_geometry(local_gt_vox)
-vis.register_key_callback(65, key_callback) #65 is a
-vis.run()
-vis.destroy_window()
+
+
+
+
+
+
+
+
+
+
+#############################3
+# for second overlay
+################################
+
+step = 99
+running_occ_path = "/hdd/sceneDiff_data/house_2/step_" + str(step) + "/running_octomap/running_occ.pcd"
+#
+#load the pose data
+curr_coor = np.loadtxt( "/hdd/sceneDiff_data/house_2/step_" + str(step) + "/running_octomap/curr_pose.txt")
+curr_rot = np.loadtxt( "/hdd/sceneDiff_data/house_2/step_" + str(step) + "/running_octomap/curr_heading.txt")
+rotation_obj = Rotation.from_rotvec(curr_rot)
+hm_tx_mat = utils.homogeneous_transform(curr_coor, rotation_obj.as_quat())
+coor = o3d.geometry.TriangleMesh.create_coordinate_frame()
+
+
+occ_pcd_2 = o3d.io.read_point_cloud(running_occ_path)
+#get local gt
+occ_point_shift_2 = copy.deepcopy(occ_pcd_2).transform(utils.inverse_homogeneous_transform(hm_tx_mat))
+#get the local data
+# local_occ_points = points_within_distance(0.0,0.0,np.asarray(occ_point_shift.points),2.0)
+local_occ_points_2 =np.asarray(occ_point_shift_2.points)
+#remove the lower floors
+local_occ_points_2 = local_occ_points_2[local_occ_points_2[:,1] > -1.7]
+#remove the celing
+local_occ_points_2 = local_occ_points_2[local_occ_points_2[:,1] < 0.9]
+
+#########################3
+#masage for overlay
+#############################3
+
+local_occ_pcd_2 = o3d.geometry.PointCloud()
+local_occ_pcd_2.points = o3d.utility.Vector3dVector(local_occ_points_2)
+local_occ_pcd_2.transform(hm_tx_mat)
+#get the points, pass by ref so i can update them
+tx_local_occ_points_2 = np.asarray(local_occ_pcd_2.points)
+tx_local_occ_points_2[:, [1, 2]] = tx_local_occ_points_2[:, [2, 1]]
+tx_local_occ_points_2[:,1] = -tx_local_occ_points_2[:,1]
+tx_local_occ_points_2[:,2] = tx_local_occ_points_2[:,2] + 0.2
+
+colors = np.zeros((len(np.asarray(local_occ_pcd_2.points)), 3))
+max_z = np.max(np.asarray(local_occ_pcd_2.points)[:,1], axis = 0)
+min_z = np.min(np.asarray(local_occ_pcd_2.points)[:,1], axis = 0)
+#create scaler constant
+# colors[:,0] = ((np.asarray(local_occ_pcd.points)[:,1] + 1.45)/(max_z - min_z))
+colors[:,2] = ((np.asarray(local_occ_pcd_2.points)[:,1] - min_z)/(max_z - min_z))*(1 - 0.3) + 0.3
+# colors[:,2] = colors[:,2] + 0.7
+# colors[:,1] = colors[:,1] + 0.5
+local_occ_pcd_2.colors = o3d.utility.Vector3dVector(colors)
+local_occ_vox_2 = o3d.geometry.VoxelGrid.create_from_point_cloud(local_occ_pcd_2, voxel_size=0.1)
+
+
+#############################3
+# for thrid overlay
+################################
+
+step = 140
+running_occ_path = "/hdd/sceneDiff_data/house_2/step_" + str(step) + "/running_octomap/running_occ.pcd"
+#
+#load the pose data
+curr_coor = np.loadtxt( "/hdd/sceneDiff_data/house_2/step_" + str(step) + "/running_octomap/curr_pose.txt")
+curr_rot = np.loadtxt( "/hdd/sceneDiff_data/house_2/step_" + str(step) + "/running_octomap/curr_heading.txt")
+rotation_obj = Rotation.from_rotvec(curr_rot)
+hm_tx_mat = utils.homogeneous_transform(curr_coor, rotation_obj.as_quat())
+coor = o3d.geometry.TriangleMesh.create_coordinate_frame()
+
+
+occ_pcd_3 = o3d.io.read_point_cloud(running_occ_path)
+#get local gt
+occ_point_shift_3 = copy.deepcopy(occ_pcd_3).transform(utils.inverse_homogeneous_transform(hm_tx_mat))
+#get the local data
+# local_occ_points = points_within_distance(0.0,0.0,np.asarray(occ_point_shift.points),2.0)
+local_occ_points_3 =np.asarray(occ_point_shift_3.points)
+#remove the lower floors
+local_occ_points_3 = local_occ_points_3[local_occ_points_3[:,1] > -1.7]
+#remove the celing
+local_occ_points_3 = local_occ_points_3[local_occ_points_3[:,1] < 0.9]
+
+#########################3
+#masage for overlay
+#############################3
+
+local_occ_pcd_3 = o3d.geometry.PointCloud()
+local_occ_pcd_3.points = o3d.utility.Vector3dVector(local_occ_points_3)
+local_occ_pcd_3.transform(hm_tx_mat)
+#get the points, pass by ref so i can update them
+tx_local_occ_points_3 = np.asarray(local_occ_pcd_3.points)
+tx_local_occ_points_3[:, [1, 2]] = tx_local_occ_points_3[:, [2, 1]]
+tx_local_occ_points_3[:,1] = -tx_local_occ_points_3[:,1]
+tx_local_occ_points_3[:,2] = tx_local_occ_points_3[:,2] + 0.2
+
+colors = np.zeros((len(np.asarray(local_occ_pcd_3.points)), 3))
+max_z = np.max(np.asarray(local_occ_pcd_3.points)[:,1], axis = 0)
+min_z = np.min(np.asarray(local_occ_pcd_3.points)[:,1], axis = 0)
+#create scaler constant
+# colors[:,0] = ((np.asarray(local_occ_pcd.points)[:,1] + 1.45)/(max_z - min_z))
+colors[:,0] = ((np.asarray(local_occ_pcd_3.points)[:,1] - min_z)/(max_z - min_z))*(1 - 0.3) + 0.3
+
+# colors[:,2] = colors[:,2] + 0.7
+# colors[:,1] = colors[:,1] + 0.5
+local_occ_pcd_3.colors = o3d.utility.Vector3dVector(colors)
+local_occ_vox_3 = o3d.geometry.VoxelGrid.create_from_point_cloud(local_occ_pcd_3, voxel_size=0.1)
+
+
+
+o3d.visualization.draw_geometries([mesh, local_occ_vox_3, local_occ_vox_2, local_occ_vox])

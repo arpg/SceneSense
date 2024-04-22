@@ -100,18 +100,18 @@ house_dirs = natsorted(os.listdir(house_path))
 
 ######################################
 #set the step
-step = 150
+step = 15
 #######################################
 
-# diff_path = "/hdd/sceneDiff_data/house_2/step_" + str(step) + "/diffused_pc_30.pcd"
+
+# diff_path = "/hdd/sceneDiff_data/figure_data/" "pointcloud_" + str(0)+ ".pcd"
 #for house 2:
 diff_path = "/hdd/sceneDiff_data/combined_image_data_house_2/diff/pointcloud_" + str(step) + ".pcd"
 running_occ_path = "/hdd/sceneDiff_data/house_2/step_" + str(step) + "/running_octomap/running_occ.pcd"
 #ground truth
 #load the gt data
-#for house 2
-gt_file_path = "/home/arpg/Documents/habitat-lab/house_2/occupancy_gt.pcd"
 # gt_file_path = '/home/arpg/Documents/habitat-lab/running_octomap/gt_occ_point.pcd'
+gt_file_path =  '/home/arpg/Documents/habitat-lab/house_2/occupancy_gt.pcd'
 gt_pcd = o3d.io.read_point_cloud(gt_file_path)
 #load the pose data
 curr_coor = np.loadtxt( "/hdd/sceneDiff_data/house_2/step_" + str(step) + "/running_octomap/curr_pose.txt")
@@ -163,29 +163,11 @@ print(pruned_diff_points.shape)
 
 #this just shifts stuff a little bit for the viewer
 pruned_diff_points[:,0] = pruned_diff_points[:,0] + 0.05
-pruned_diff_points[:,2] = pruned_diff_points[:,2] + -0.08
+pruned_diff_points[:,2] = pruned_diff_points[:,2] + -0.05
 #create pruned pcd
 pruned_diff_pcd = o3d.geometry.PointCloud()
 pruned_diff_pcd.points = o3d.utility.Vector3dVector(pruned_diff_points)
 
-#prune gt data
-#lets go through tall the dif fpoints and remove anything that is super close to a local point
-pcd_gt_points = np.asarray(local_pcd.points)
-
-pruned_gt_points = np.empty((0,3), float)
-for point in pcd_gt_points:
-    if not(is_within_distance(point, local_occ_points, 0.09)):
-        pruned_gt_points = np.append(pruned_gt_points, point[None,:], axis = 0)
-
-print(diff_points.shape)
-print(pruned_diff_points.shape)
-
-#this just shifts stuff a little bit for the viewer
-# pruned_gt_points[:,0] = pruned_gt_points[:,0] + 0.05
-# pruned_gt_points[:,2] = pruned_gt_points[:,2] + -0.08
-#create pruned pcd
-pruned_gt_pcd = o3d.geometry.PointCloud()
-pruned_gt_pcd.points = o3d.utility.Vector3dVector(pruned_gt_points)
 ########################
 # Color stuff
 #########################
@@ -220,40 +202,79 @@ local_occ_vox = o3d.geometry.VoxelGrid.create_from_point_cloud(local_occ_pcd, vo
 
 
 #lets do the same colors for the running
-colors = np.zeros((len(np.asarray(pruned_gt_pcd.points)), 3))
-max_z = np.max(np.asarray(pruned_gt_pcd.points)[:,1], axis = 0)
-min_z = np.min(np.asarray(pruned_gt_pcd.points)[:,1], axis = 0)
+colors = np.zeros((len(np.asarray(local_pcd.points)), 3))
+max_z = np.max(np.asarray(local_pcd.points)[:,1], axis = 0)
+min_z = np.min(np.asarray(local_pcd.points)[:,1], axis = 0)
 #create scaler constant
-# colors[:,0] = ((np.asarray(pruned_gt_pcd.points)[:,1] + 1.45)/(max_z - min_z))
-colors[:,0] = ((np.asarray(pruned_gt_pcd.points)[:,1] - min_z)/(max_z - min_z))*(1 - 0.3) + 0.3
-colors[:,1] = ((np.asarray(pruned_gt_pcd.points)[:,1] - min_z)/(max_z - min_z))*(1 - 0.3) + 0.3
+# colors[:,0] = ((np.asarray(local_pcd.points)[:,1] + 1.45)/(max_z - min_z))
+colors[:,0] = ((np.asarray(local_pcd.points)[:,1] - min_z)/(max_z - min_z))*(1 - 0.3) + 0.3
+colors[:,1] = ((np.asarray(local_pcd.points)[:,1] - min_z)/(max_z - min_z))*(1 - 0.3) + 0.3
 
 # colors[:,2] = colors[:,2] + 0.7
 # colors[:,1] = colors[:,1] + 0.5
-pruned_gt_pcd.colors = o3d.utility.Vector3dVector(colors)
-local_gt_vox = o3d.geometry.VoxelGrid.create_from_point_cloud(pruned_gt_pcd, voxel_size=0.1)
+local_pcd.colors = o3d.utility.Vector3dVector(colors)
+local_gt_vox = o3d.geometry.VoxelGrid.create_from_point_cloud(local_pcd, voxel_size=0.1)
 
-# o3d.visualization.draw_geometries([local_gt_vox, local_occ_vox])
+#get view data 
+# ctr = o3d.visualization.get_view_control()
+# parameters = o3d.io.read_pinhole_camera_parameters("ScreenCamera_2024-02-29-10-16-09.json")
+# ctr.convert_from_pinhole_camera_parameters(parameters)
+
+# o3d.visualization.draw_geometries([local_occ_vox, diff_vox])
+
+
 def key_callback(vis):
+    # print('key')
+    pcd_file_path = '/home/arpg/Documents/habitat-lab/running_octomap/running_occ.pcd'
+    #need to add to load the gt file so we can get the gt predictions
+    gt_file_path = '/home/arpg/Documents/habitat-lab/running_octomap/gt_occ_point.pcd'
+    gt_pcd = o3d.io.read_point_cloud(gt_file_path)
+    #load just the points at the current pose
+    gt_points = np.asarray(gt_pcd.points)
+    #get the current pose of the robot
+    curr_coor = np.loadtxt("/home/arpg/Documents/habitat-lab/running_octomap/curr_pose.txt")
+    curr_rot= np.loadtxt("/home/arpg/Documents/habitat-lab/running_octomap/curr_heading.txt")
+
+    local_gt_points = points_within_distance(curr_coor[0],curr_coor[2],gt_points,2.0)
+    #remove celling and lower floors
+    #remove the lower floors
+    local_gt_points = local_gt_points[local_gt_points[:,1] > -1.4]
+    #remove the celing
+    local_gt_points = local_gt_points[local_gt_points[:,1] < 0.9]
+
+    local_pcd = o3d.geometry.PointCloud()
+    local_pcd.points = o3d.utility.Vector3dVector(local_gt_points)
+    #add color to the points 
+    colors = np.zeros((len(np.asarray(local_pcd.points)), 3))
+    # colors[:,0] = colors[:,1] + 1
+    local_pcd.colors = o3d.utility.Vector3dVector(colors)
+
+    pcd = o3d.io.read_point_cloud(pcd_file_path)
     ctr  = vis.get_view_control()
     view_param =ctr.convert_to_pinhole_camera_parameters()
     vis.clear_geometries()
 
-    
     vis.add_geometry(local_occ_vox)
-    vis.add_geometry(local_gt_vox)
+    vis.add_geometry(diff_vox)
     
-    parameters = o3d.io.read_pinhole_camera_parameters("ScreenCamera_2024-03-04-17-17-19.json")
+    
+    parameters = o3d.io.read_pinhole_camera_parameters("ScreenCamera_2024-02-29-10-16-09.json")
     ctr.convert_from_pinhole_camera_parameters(parameters)
 
 
 # ctr  = self.o3d_visualizer.get_view_control()
 # view_param =ctr.convert_to_pinhole_camera_parameters()
 
+pcd_file_path = '/home/arpg/Documents/habitat-lab/running_octomap/running_occ.pcd'
+pcd = o3d.io.read_point_cloud(pcd_file_path)
 
 vis = o3d.visualization.VisualizerWithKeyCallback()
 vis.create_window()
-vis.add_geometry(local_gt_vox)
-vis.register_key_callback(65, key_callback) #65 is a
+vis.add_geometry(pcd)
+vis.register_key_callback(65, key_callback)
+# vis.register_animation_callback(key_callback)
+# Set the timer interval (in milliseconds)
+# vis.get_timer().set_interval(1000)
+
 vis.run()
 vis.destroy_window()

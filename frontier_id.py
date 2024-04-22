@@ -27,6 +27,28 @@ def is_surrounded(point, close_points):
 
     # for query_point in close_point:
         
+def categorize_points(points, categories):
+    categories_dict = {}
+    
+    for i in range(len(points)):
+        category = categories[i]
+        point = points[i]
+        
+        if category not in categories_dict:
+            categories_dict[category] = []
+        
+        categories_dict[category].append(point)
+    
+    return categories_dict
+def calculate_median_points(categories_dict):
+    medians = []
+
+    for category, points_list in categories_dict.items():
+        median_point = np.median(points_list, axis=0)
+        medians.append(median_point)
+
+    return np.array(medians)
+
 
 occ_pcd_path = '/home/arpg/Documents/habitat-lab/running_octomap/running_occ.pcd'
 unocc_pcd_path = '/home/arpg/Documents/habitat-lab/test_unoc.pcd'
@@ -102,4 +124,15 @@ pcd.points = o3d.utility.Vector3dVector(front_point_arr)
 # colors[:,2] = colors[:,2] + 1
 # pcd.colors = o3d.utility.Vector3dVector(colors)
 pcd.colors = o3d.utility.Vector3dVector(cluster_colors)
-o3d.visualization.draw_geometries([occ_pcd, pcd])
+
+#compute cluster centroids, probably the median point in 3d
+catagory_dict = categorize_points(front_point_arr,model.labels_ + 1)
+#for each cluster find the centroid of the frontier
+median_fronts = calculate_median_points(catagory_dict)
+# print(median_fronts)
+colors = np.zeros((len(median_fronts), 3))
+colors[:,2] = colors[:,2] + 1
+pcd_centroids = o3d.geometry.PointCloud()
+pcd_centroids.points = o3d.utility.Vector3dVector(median_fronts)
+pcd_centroids.colors = o3d.utility.Vector3dVector(colors)
+o3d.visualization.draw_geometries([occ_pcd,pcd, pcd_centroids])
