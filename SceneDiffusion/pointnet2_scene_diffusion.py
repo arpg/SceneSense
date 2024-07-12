@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from pointnet2_utils import PointNetSetAbstraction,PointNetFeaturePropagation
+from SceneDiffusion.pointnet2_utils import PointNetSetAbstraction,PointNetFeaturePropagation
 
 
 class get_model(nn.Module):
@@ -9,7 +9,7 @@ class get_model(nn.Module):
         #can change the 3 in the 3+3 to change the numner of poitns going into this
         #can change the first number in the abstraction to change the downsampling\
         #originally reduced from 2048 to 1024
-        #another example did 
+        #another example did
         self.sa1 = PointNetSetAbstraction(2048, 0.1, 32, 6 + 3, [32, 32, 64], False)
         self.sa2 = PointNetSetAbstraction(1024, 0.2, 32, 64 + 3, [64, 64, 128], False)
         self.sa3 = PointNetSetAbstraction(512, 0.4, 32, 128 + 3, [128, 128, 256], False)
