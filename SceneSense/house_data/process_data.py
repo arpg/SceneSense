@@ -18,7 +18,7 @@ import yaml
 import cv2
 from pypcd4 import PointCloud
 from scipy.spatial.transform import Rotation
-from SceneDiffusion import utils
+from SceneSense import utils
 ODOMETRY_LOCATIONS = ['pose.pose.position.x',
        'pose.pose.position.y', 'pose.pose.position.z']
 
@@ -110,7 +110,7 @@ class FieldDataClass(object):
     offset: int
     datatype: int
     count: int
-    
+
     def __init__(self, name: str, offset: int, datatype: int, count: int) -> None:
         self.name = name.strip('"')
         self.count = int(count)
@@ -151,7 +151,7 @@ if __name__ == '__main__':
     # Load .csv files into memory
     transforms = load_full_csv(tf_file_name)
     odometry = load_full_csv(odom_file_name)
-    
+
 
     odometry[['roll', 'pitch', 'yaw']] = R.from_quat(odometry[ODOMETRY_QUAT].to_numpy()).as_rotvec()
 
@@ -190,12 +190,12 @@ if __name__ == '__main__':
                 # Find closest transform message to currect point cloud message
 
                 tf_indices = np.argsort(np.abs(transforms['Time'].to_numpy() - row['Time']))
-                
-                
+
+
                 tfs = []
                 rot_index = 0
                 for i in tf_indices:
-                   
+
                     if len(tfs) >= 2:
                         break
                     tf = yaml.safe_load(transforms.iloc[tf_indices[i]]['transforms'][1:-1].replace(', ', '\n'))
@@ -212,19 +212,19 @@ if __name__ == '__main__':
                 row['fields'] = fields
 
 
-                
+
                 row['data'] = row['data'].encode().decode('unicode-escape').encode('ISO-8859-1')[2:-1]
                 pc = PointCloud.from_msg(row)
                 print(pc.fields)
 
                 rot = tfs[rot_index]['transform']['rotation']
-                rot = [rot[k] for k in ['x', 'y', 'z', 'w']]    
+                rot = [rot[k] for k in ['x', 'y', 'z', 'w']]
                 rotation_obj = Rotation.from_quat(rot)
                 hm_tx_mat = utils.homogeneous_transform([0, 0, 0], rotation_obj.as_quat())
                 #transform the pcd into the robot frame
-                
+
                 pc = pc.numpy()
-               
+
                 exit()
                 t = utils.inverse_homogeneous_transform(hm_tx_mat)
                 pc = t @ pc
@@ -239,11 +239,11 @@ if __name__ == '__main__':
                         print(tf)
                         exit()
                 np.save(dataset_dir + data_dir + 'odometry/' + str(index).zfill(4), np.array(odom))
-                
+
                 # Write point clouds and odometry to .log file for octomap
                 file.write(f'NODE {" ".join([str(x) for x in odom])}\n')
                 file.write(pc_to_str(pc.numpy()))
                 if index % 100 == 0:
                     print("{:.2f}".format(index / num_point_clouds))
-            
-            
+
+
