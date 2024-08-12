@@ -7,5 +7,6 @@ setup(
       author='Alec Reed, Brendan Crowe, Lorin Achey',
       author_email='alec.reed@colorado.edu',
       url='',
-      packages=['SceneSense', 'SceneSense.utils', 'SceneSense.spot_data_processing'],
+      packages=['SceneSense', "SceneSense.utils", 'SceneSense.spot_data_processing', "SceneSense.training",
+                "SceneSense.visualizations", "SceneSense.plotting"],
 )
