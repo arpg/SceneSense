@@ -1,6 +1,9 @@
 # SceneSense: Diffusion Models for 3D Occupancy Synthesis from Partial Observation
 
-![Alt text](example_result_h1.png)
+<p align="center">
+  <img src="example_results_h1.png" alt="Example Image 1" height="500"/>
+  <img src="example_results_h2.png" alt="Example Image 2" height="500"/>
+</p>
 
 ## Tested Specs
 
