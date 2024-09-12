@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from SceneDiffusion.pointnet2_utils import PointNetSetAbstraction,PointNetFeaturePropagation
+from SceneSense.pointnet2_utils import PointNetSetAbstraction,PointNetFeaturePropagation
 
 
 class get_model(nn.Module):

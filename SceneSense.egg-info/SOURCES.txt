@@ -47,11 +47,8 @@ SceneSense/spot_data_processing/train_full_spot_model.py
 SceneSense/spot_data_processing/view_gt_and_cond.py
 SceneSense/spot_data_processing/view_input_pc_and_goal_pc.py
 SceneSense/training/__init__.py
-SceneSense/training/train_4_step_model.py
-SceneSense/training/train_full_sim_model.py
 SceneSense/training/train_full_sim_model_short.py
-SceneSense/training/train_poc_model.py
-SceneSense/training/train_rgbd_model.py
+SceneSense/training/train_model.py
 SceneSense/utils/__init__.py
 SceneSense/utils/utils.py
 SceneSense/visualizations/__init__.py

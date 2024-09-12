@@ -3,7 +3,7 @@ from diffusers import UNet2DConditionModel
 import torch
 from diffusers import DDPMScheduler
 import torch.nn.functional as F
-from pointnet2_scene_diffusion import get_model
+from SceneSense.pointnet2_scene_diffusion import get_model
 import os
 from natsort import natsorted
 import numpy as np
@@ -14,7 +14,7 @@ import wandb
 import random
 from huggingface_hub import login
 from diffusers.optimization import get_cosine_schedule_with_warmup
-import utils.utils as utils
+import SceneSense.utils.utils as utils
 from scipy.spatial.transform import Rotation
 import re
 from spconv.pytorch.utils import PointToVoxel
@@ -91,21 +91,21 @@ torch_device = "cpu"
 # conditioning_model.load_state_dict(torch.load("/home/arpg/Documents/SceneDiffusion/conditioning_model_weights/cond_model" + str(217)))
 model = UNet2DConditionModel.from_pretrained("alre5639/full_rgbd_unet_512_more_pointnet", revision = "b063adc01ea748b7a4dbfb7e180eedf741aef536")
 conditioning_model = get_model()
-conditioning_model.load_state_dict(torch.load("/hdd/sceneSense_data/data/full_sim_pointnet_weights_more_pointnet/171"))
+conditioning_model.load_state_dict(torch.load("data/SceneSenseExData/171"))
 
 #get the running octomap
-pcd_file_path = '/home/arpg/Documents/habitat-lab/running_octomap/running_occ.pcd'
+pcd_file_path = 'data/SceneSenseExData/running_occ.pcd'
 pcd = o3d.io.read_point_cloud(pcd_file_path)
 colors = np.zeros((len(np.asarray(pcd.points)), 3))
 pcd.colors = o3d.utility.Vector3dVector(colors)
 #get the gt prediction
-gt_file_path = '/home/arpg/Documents/habitat-lab/running_octomap/gt_occ_point.pcd'
+gt_file_path = 'data/SceneSenseExData/gt_occ_point.pcd'
 gt_pcd = o3d.io.read_point_cloud(gt_file_path)
 #load just the points at the current pose
 gt_points = np.asarray(gt_pcd.points)
 #get the current pose of the robot
-curr_coor = np.loadtxt("/home/arpg/Documents/habitat-lab/running_octomap/curr_pose.txt")
-curr_rot= np.loadtxt("/home/arpg/Documents/habitat-lab/running_octomap/curr_heading.txt")
+curr_coor = np.loadtxt("data/SceneSenseExData/curr_pose.txt")
+curr_rot= np.loadtxt("data/SceneSenseExData/curr_heading.txt")
 local_gt_points = points_within_distance(curr_coor[0],curr_coor[2],gt_points,2.0)
 #remove the lower floors
 local_gt_points = local_gt_points[local_gt_points[:,1] > -1.4]
@@ -123,7 +123,7 @@ local_pcd.colors = o3d.utility.Vector3dVector(colors)
 ########################################3
 #get the local conditioning
 #load the training folders
-training_dirs = "/home/arpg/Documents/habitat-lab/running_octomap/"
+training_dirs = "data/SceneSenseExData/"
 gen = PointToVoxel(vsize_xyz=[0.01, 0.01, 0.01],
                         coors_range_xyz=[-10, -10, -10, 10, 10, 10],
                         num_point_features=6,
@@ -323,24 +323,4 @@ colors[:,1] = 0
 colors[:,2] = 0
 pcd_inpaint.colors = o3d.utility.Vector3dVector(colors)
 pcd_inpaint.transform(hm_tx_mat)
-# o3d.visualization.draw_geometries([pcd_inpaint, pcd])
-#transform pcd to origin
-#there is an offset thing going on
-
-# #I think the freespace inpainting might be wrong need to convicnce ourselves it is working
-print(inpained_pm.shape)
-for i, img in enumerate(np.asarray(inpained_pm[0])):
-    #normalize the outputs to 255 in each pixel
-    output = copy.deepcopy(img) * 255
-    #dupicate it to be an image
-    output = np.repeat(output[:, :, np.newaxis], 3, axis=2)
-    print(output.shape)
-    #save it as a cv2 image
-    cv2.imwrite("fid_data/ss_predicted/" + str(i) + ".png", output )
-
-
-#compute the fid
-fid_val = fid.compute_fid("fid_data/ss_predicted/", "fid_data/gt/")
-print(fid_val)
-
 o3d.visualization.draw_geometries([pcd_inpaint, pcd])

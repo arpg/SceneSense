@@ -1,1 +1,1 @@
-from SceneDiffusion.utils.utils import *
+from SceneSense.utils.utils import *
