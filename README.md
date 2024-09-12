@@ -1,28 +1,18 @@
-Pointnet implimentation: https://github.com/yanx27/Pointnet_Pointnet2_pytorch 
+# Install Instructions
 
-## Installation
+git clone git@github.com:arpg/SceneSense.git
 
-python -m venv .env
+## Install Dependencies and virtual enviornment
+./setup.bash /path/to/cloned/directory
+
+## Download data
+
+<link>
+
+place data in /SceneSense/SceneSense/data/
+## Run Test data
 
 source .env/bin/activate
 
-pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-
-pip install diffusers["torch"] transformers
-
-pip install --upgrade huggingface_hub
-
-pip3 install natsort
-
-pip install wandb
-
-pip install spconv
-
-pip install scipy
-
-pip install matplotlib
-
-### git-lfs install: 
-curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
-
-sudo apt-get install git-lfs
+cd SceneSense/SceneSense
+python3 example_prediction.py
