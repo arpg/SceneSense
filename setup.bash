@@ -33,7 +33,7 @@ pip install diffusers["torch"] transformers
 pip install --upgrade huggingface_hub
 pip install natsort
 pip install wandb
-pip install spconv
+pip install spconv-cu120
 pip install scipy
 pip install matplotlib
 
