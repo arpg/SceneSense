@@ -101,6 +101,8 @@ model = UNet2DConditionModel.from_pretrained(
 conditioning_model = get_model().to(torch_device)
 conditioning_model.load_state_dict(torch.load("data/SceneSenseExData/171"))
 
+mcmc_steps = 5
+lambda_ = 0.5
 # get the running octomap
 pcd_file_path = "data/SceneSenseExData/running_occ.pcd"
 pcd = o3d.io.read_point_cloud(pcd_file_path)
@@ -314,7 +316,7 @@ unoc_recon_pcd.colors = o3d.utility.Vector3dVector(colors)
 # do the freespace inpainting
 # o3d.visualization.draw_geometries([unoc_recon_pcd, reconstructed_pcd])
 inpained_pm = utils.inpainting_pointmaps_w_freespace(
-    model, noise_scheduler, pointnet_conditioing, 40, local_octomap_pm, unoc_pm
+    model, noise_scheduler, pointnet_conditioing, 40, local_octomap_pm, unoc_pm, mcmc_steps=mcmc_steps, lambda_=lambda_,
 )
 inpained_points = utils.pointmap_to_pc(
     inpained_pm[0], voxel_size=0.1, x_y_bounds=[-2, 2], z_bounds=[-1.4, 0.9]
