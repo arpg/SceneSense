@@ -1,15 +1,18 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from SceneSense.pointnet2_utils import PointNetSetAbstraction,PointNetFeaturePropagation
+from SceneSense.utils.pointnet2_utils import (
+    PointNetSetAbstraction,
+    PointNetFeaturePropagation,
+)
 
 
 class get_model(nn.Module):
     def __init__(self):
         super(get_model, self).__init__()
-        #can change the 3 in the 3+3 to change the numner of poitns going into this
-        #can change the first number in the abstraction to change the downsampling\
-        #originally reduced from 2048 to 1024
-        #another example did
+        # can change the 3 in the 3+3 to change the numner of poitns going into this
+        # can change the first number in the abstraction to change the downsampling\
+        # originally reduced from 2048 to 1024
+        # another example did
         self.sa1 = PointNetSetAbstraction(2048, 0.1, 32, 6 + 3, [32, 32, 64], False)
         self.sa2 = PointNetSetAbstraction(1024, 0.2, 32, 64 + 3, [64, 64, 128], False)
         self.sa3 = PointNetSetAbstraction(512, 0.4, 32, 128 + 3, [128, 128, 256], False)
@@ -25,7 +28,7 @@ class get_model(nn.Module):
 
     def forward(self, xyz):
         l0_points = xyz
-        l0_xyz = xyz[:,:3,:]
+        l0_xyz = xyz[:, :3, :]
 
         l1_xyz, l1_points = self.sa1(l0_xyz, l0_points)
         l2_xyz, l2_points = self.sa2(l1_xyz, l1_points)
@@ -38,16 +41,16 @@ class get_model(nn.Module):
         # print(l2_points.shape)
         l1_points = self.fp2(l1_xyz, l2_xyz, l1_points, l2_points)
         # print(l1_points.shape)
-        #i might actually want this instead of the l0 points since it will be much smaller
+        # i might actually want this instead of the l0 points since it will be much smaller
         l0_points = self.fp1(l0_xyz, l1_xyz, None, l1_points)
         # print(l0_points.shape)
 
         # x = self.drop1(F.relu(self.bn1(self.conv1(l0_points))))
-        #I am going to add the dropout to the l1 points because we dont actuall need that much conditioning
+        # I am going to add the dropout to the l1 points because we dont actuall need that much conditioning
         x = self.drop1(F.relu(self.bn1(self.conv1(l1_points))))
         return x
 
-        #removing this and returning above because we dont need all this data
+        # removing this and returning above because we dont need all this data
         # print(x.shape)
         # #this is where they convolve the features into the softmax part
         # x = self.conv2(x)
@@ -59,13 +62,16 @@ class get_model(nn.Module):
 class get_loss(nn.Module):
     def __init__(self):
         super(get_loss, self).__init__()
+
     def forward(self, pred, target, trans_feat, weight):
         total_loss = F.nll_loss(pred, target, weight=weight)
 
         return total_loss
 
-if __name__ == '__main__':
-    import  torch
+
+if __name__ == "__main__":
+    import torch
+
     model = get_model(13)
     xyz = torch.rand(6, 9, 2048)
     (model(xyz))

@@ -1,6 +1,9 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from pointnet2_utils import PointNetSetAbstraction,PointNetFeaturePropagation
+from SceneSense.utils.pointnet2_utils import (
+    PointNetSetAbstraction,
+    PointNetFeaturePropagation,
+)
 
 
 class get_model(nn.Module):
@@ -21,7 +24,7 @@ class get_model(nn.Module):
 
     def forward(self, xyz):
         l0_points = xyz
-        l0_xyz = xyz[:,:3,:]
+        l0_xyz = xyz[:, :3, :]
 
         l1_xyz, l1_points = self.sa1(l0_xyz, l0_points)
         l2_xyz, l2_points = self.sa2(l1_xyz, l1_points)
@@ -43,13 +46,16 @@ class get_model(nn.Module):
 class get_loss(nn.Module):
     def __init__(self):
         super(get_loss, self).__init__()
+
     def forward(self, pred, target, trans_feat, weight):
         total_loss = F.nll_loss(pred, target, weight=weight)
 
         return total_loss
 
-if __name__ == '__main__':
-    import  torch
+
+if __name__ == "__main__":
+    import torch
+
     model = get_model(13)
     xyz = torch.rand(6, 9, 2048)
     (model(xyz))

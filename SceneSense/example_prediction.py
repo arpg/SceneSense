@@ -20,7 +20,7 @@ from spconv.pytorch.utils import PointToVoxel
 from tqdm.auto import tqdm
 
 import SceneSense.utils.utils as utils
-from SceneSense.pointnet2_scene_diffusion import get_model
+from SceneSense.utils.pointnet2_scene_diffusion import get_model
 
 
 def points_within_distance(x, y, points, distance):
@@ -168,7 +168,9 @@ conditioning_pcd.transform(hm_tx_mat)
 # o3d.visualization.draw_geometries([conditioning_pcd,local_pcd, pcd])
 
 
-voxels_th, indices_th, num_p_in_vx_th = gen(torch.tensor(rgbd_pc).to(torch.float32).to(torch_device), empty_mean=True)
+voxels_th, indices_th, num_p_in_vx_th = gen(
+    torch.tensor(rgbd_pc).to(torch.float32).to(torch_device), empty_mean=True
+)
 voxels_np = voxels_th.to("cpu").numpy()
 conditioning_voxel_points = np.reshape(voxels_np, (-1, 6))
 print(conditioning_voxel_points.shape)
@@ -177,7 +179,9 @@ conditioning_voxel_points = conditioning_voxel_points.T
 conditioning_voxel_points = conditioning_voxel_points[None, :, :]
 # swap axis 1 and 2
 
-conditioning_voxel_points = torch.tensor(conditioning_voxel_points.astype(np.single)).to(torch_device)
+conditioning_voxel_points = torch.tensor(
+    conditioning_voxel_points.astype(np.single)
+).to(torch_device)
 
 pointnet_conditioing = conditioning_model(conditioning_voxel_points)
 pointnet_conditioing = pointnet_conditioing.swapaxes(1, 2)
@@ -316,7 +320,14 @@ unoc_recon_pcd.colors = o3d.utility.Vector3dVector(colors)
 # do the freespace inpainting
 # o3d.visualization.draw_geometries([unoc_recon_pcd, reconstructed_pcd])
 inpained_pm = utils.inpainting_pointmaps_w_freespace(
-    model, noise_scheduler, pointnet_conditioing, 40, local_octomap_pm, unoc_pm, mcmc_steps=mcmc_steps, lambda_=lambda_,
+    model,
+    noise_scheduler,
+    pointnet_conditioing,
+    40,
+    local_octomap_pm,
+    unoc_pm,
+    mcmc_steps=mcmc_steps,
+    lambda_=lambda_,
 )
 inpained_points = utils.pointmap_to_pc(
     inpained_pm[0], voxel_size=0.1, x_y_bounds=[-2, 2], z_bounds=[-1.4, 0.9]
