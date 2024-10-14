@@ -10,9 +10,7 @@ setup(
     packages=[
         "SceneSense",
         "SceneSense.utils",
-        "SceneSense.spot_data_processing",
         "SceneSense.training",
-        "SceneSense.visualizations",
         "SceneSense.plotting",
     ],
 )

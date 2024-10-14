@@ -399,7 +399,7 @@ def inpainting_pointmaps_w_freespace(
     guidance_scale=3,
     sample_batch_size=1,
     mcmc_steps: int = 0,
-    lambda_: float = 0.5,
+    lambda_: float = 0.1,
 ):
     # set up initialize noise scheudler and noise to be operated on
     noise_scheduler.set_timesteps(denoising_steps)
@@ -438,6 +438,7 @@ def inpainting_pointmaps_w_freespace(
     # latents = latents.to(torch_device)
     latents = latents * noise_scheduler.init_noise_sigma
     for t in tqdm(noise_scheduler.timesteps):
+        print(t)
         # get the noisy scan points
         # this adds noise to voxel grid which is our conditioning targets
         noisy_images = noise_scheduler.add_noise(
@@ -477,7 +478,9 @@ def inpainting_pointmaps_w_freespace(
         # EXPECT THESE
         # break
         # expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
+        print(latents.shape)
         latent_model_input = torch.cat([latents] * 2)
+        print(latent_model_input.shape)
         latent_model_input = noise_scheduler.scale_model_input(
             latent_model_input, timestep=t
         )
@@ -497,17 +500,33 @@ def inpainting_pointmaps_w_freespace(
 
         # Perform MCMC sampling (ULA for simplicity)
         std = (2 * lambda_) ** 0.5
+        print(latents.shape)
         for _ in range(mcmc_steps):
             # Calculate the gradient of log-probability (score) from the model's output
             with torch.no_grad():
-                new_pred = model(latents, t).sample
-            noise_MCMC = torch.randn_like(new_pred) * std  # (B, 3, H, W)
-            latents = latents + new_pred * lambda_ * noise_MCMC
-            # print(latents.shape)
-            # gradient = noise_scheduler.scale_model_input(new__pred, t)
+                mcmc_latents  = torch.cat([latents] * 2)
+                mcmc_latents = noise_scheduler.scale_model_input(
+                    mcmc_latents, timestep=t-1
+                )
+                new_pred = model(
+                    mcmc_latents, t-1, encoder_hidden_states=sample_conditioning
+                ).sample
+            # perform guidance
+            new_pred_uncond, new_pred_text = new_pred.chunk(2)
+            final_new_pred = new_pred_uncond + guidance_scale * (
+                new_pred_text - new_pred_uncond
+            )
+            
+            print(final_new_pred.shape)
+            noise_MCMC = torch.randn_like(final_new_pred) * std  # (B, 3, H, W)
+            print(noise_MCMC.shape)
+            latents = latents + final_new_pred * lambda_ * noise_MCMC
+            print(latents.shape)
+        print(latents.shape)
+        gradient = noise_scheduler.scale_model_input(final_new_pred, t)
 
-            # # Langevin step: gradient ascent with noise
-            # latents = latents + 0.5 * step_size * gradient + torch.sqrt(step_size) * torch.randn_like(latents)
+        # # Langevin step: gradient ascent with noise
+        # latents = latents + 0.5 * step_size * gradient + torch.sqrt(step_size) * torch.randn_like(latents)
 
         ############################################
         # just for viewing the outputs

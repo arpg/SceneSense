@@ -9,6 +9,8 @@ import torch
 from scipy.spatial.transform import Rotation
 from tqdm.auto import tqdm
 
+from SceneSense.utils.utils import homogeneous_transform, inverse_homogeneous_transform, pc_to_pointmap
+
 
 def inpainting_pointmaps_w_freespace(
     model,
@@ -105,7 +107,7 @@ def inpainting_pointmaps_w_freespace(
         for _ in range(mcmc_steps):
             # Calculate the gradient of log-probability (score) from the model's output
             with torch.no_grad():
-                new_pred = model(latents, t).sample
+                new_pred = model(latents, t, sample_conditioning).sample
             noise_MCMC = torch.randn_like(new_pred) * std  # (B, 3, H, W)
             latents = latents + new_pred * lambda_ * noise_MCMC
             # print(latents.shape)
