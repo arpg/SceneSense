@@ -60,25 +60,20 @@ def inpainting_pointmaps_w_freespace(
 
     # perform diffusion
     for t in tqdm(noise_scheduler.timesteps):
-        # get the noisy scan points
-        # this adds noise to voxel grid which is our conditioning targets
+        
+        # add noise to inpainting data to match the current timestep
         noisy_images = noise_scheduler.add_noise(
             inpainting_target_torch, noise, timesteps=torch.tensor([t.item()])
         )
-
-        # WE ACTUALLY NEED TO TURN THIS TO Zeros so we do 1 -
-        # I think this 1- operation might mess it up
         noisy_unoc_images = noise_scheduler.add_noise(
             1 - inpainting_target_torch_unocc, noise, timesteps=torch.tensor([t.item()])
         )
-        # add in the noise image wehre the input scans are
-        # replace the data with the overwrited noisified current octomap image
-
+        
+        
+        # do inpainting
         latents[0][inpainting_target_torch > 0.9] = noisy_images[
             inpainting_target_torch > 0.9
         ]
-        # also iterate through all the coordinates and input our freespace
-
         latents[0][inpainting_target_torch_unocc > 0.9] = noisy_unoc_images[
             inpainting_target_torch_unocc > 0.9
         ]
@@ -95,26 +90,34 @@ def inpainting_pointmaps_w_freespace(
                 latent_model_input, t, encoder_hidden_states=sample_conditioning
             ).sample
         # perform guidance
-        noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+        noise_pred_uncond, noise_pred_cond = noise_pred.chunk(2)
         noise_pred = noise_pred_uncond + guidance_scale * (
-            noise_pred_text - noise_pred_uncond
+            noise_pred_cond - noise_pred_uncond
         )
         # compute the previous noisy sample x_t -> x_t-1
-        latents = noise_scheduler.step(noise_pred, t, latents).prev_sample
+        latents = noise_scheduler.step(noise_pred, t, latents).prev_sample # \mu (x_t)
 
-        # Perform MCMC sampling (ULA for simplicity)
         std = (2 * lambda_) ** 0.5
         for _ in range(mcmc_steps):
             # Calculate the gradient of log-probability (score) from the model's output
             with torch.no_grad():
-                new_pred = model(latents, t, sample_conditioning).sample
-            noise_MCMC = torch.randn_like(new_pred) * std  # (B, 3, H, W)
-            latents = latents + new_pred * lambda_ * noise_MCMC
-            # print(latents.shape)
-            # gradient = noise_scheduler.scale_model_input(new__pred, t)
-
-            # # Langevin step: gradient ascent with noise
-            # latents = latents + 0.5 * step_size * gradient + torch.sqrt(step_size) * torch.randn_like(latents)
+                mcmc_latents  = torch.cat([latents] * 2)
+                mcmc_latents = noise_scheduler.scale_model_input(
+                    mcmc_latents, timestep=t-1
+                )
+                new_pred = model(
+                    mcmc_latents, t-1, encoder_hidden_states=sample_conditioning
+                ).sample # x_t-1
+            # perform guidance
+            mcmc_noise_pred_uncond, mcmc_noise_pred_cond = new_pred.chunk(2)
+            score_func = mcmc_noise_pred_uncond + guidance_scale * (
+                mcmc_noise_pred_cond - mcmc_noise_pred_uncond
+            ) 
+            score_func = (1 / np.sqrt(1 - noise_scheduler.alphas_cumprod[t-1])) * score_func # s_theta (x_t-1)
+            
+        
+            noise_MCMC = torch.randn_like(score_func) * std  # (B, 3, H, W)
+            latents = latents + score_func * lambda_ * noise_MCMC
 
     # inpaint again
     latents[0][inpainting_target_torch > 0.9] = noisy_images[
