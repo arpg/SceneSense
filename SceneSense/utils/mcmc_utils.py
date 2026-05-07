@@ -60,7 +60,7 @@ def inpainting_pointmaps_w_freespace(
 
     # perform diffusion
     for t in tqdm(noise_scheduler.timesteps):
-        
+
         # add noise to inpainting data to match the current timestep
         noisy_images = noise_scheduler.add_noise(
             inpainting_target_torch, noise, timesteps=torch.tensor([t.item()])
@@ -68,8 +68,8 @@ def inpainting_pointmaps_w_freespace(
         noisy_unoc_images = noise_scheduler.add_noise(
             1 - inpainting_target_torch_unocc, noise, timesteps=torch.tensor([t.item()])
         )
-        
-        
+
+
         # do inpainting
         latents[0][inpainting_target_torch > 0.9] = noisy_images[
             inpainting_target_torch > 0.9
@@ -112,12 +112,12 @@ def inpainting_pointmaps_w_freespace(
             mcmc_noise_pred_uncond, mcmc_noise_pred_cond = new_pred.chunk(2)
             score_func = mcmc_noise_pred_uncond + guidance_scale * (
                 mcmc_noise_pred_cond - mcmc_noise_pred_uncond
-            ) 
+            )
             score_func = (1 / np.sqrt(1 - noise_scheduler.alphas_cumprod[t-1])) * score_func # s_theta (x_t-1)
-            
-        
+
+
             noise_MCMC = torch.randn_like(score_func) * std  # (B, 3, H, W)
-            latents = latents + score_func * lambda_ * noise_MCMC
+            latents = (latents + score_func * lambda_) + noise_MCMC
 
     # inpaint again
     latents[0][inpainting_target_torch > 0.9] = noisy_images[
